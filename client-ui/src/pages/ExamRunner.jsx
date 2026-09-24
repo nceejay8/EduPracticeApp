@@ -5,6 +5,7 @@ import { buildExam, scoreExam, saveAttempt } from '../data/examBank';
 import { trackExamStart, trackExamCompletion } from '../utils/analyticsTracker';
 import FocusAudio from '../components/FocusAudio';
 import { clearExamDraft, loadExamDraft, saveExamDraft } from '../services/examDraftService';
+import { useAuth } from '../contexts/AuthContext';
 
 function parseDurationToSeconds(str) {
   if (!str) return 30 * 60;
@@ -29,6 +30,7 @@ function formatTime(secs) {
 export default function ExamRunner() {
   const navigate = useNavigate();
   const location = useLocation();
+  const auth = useAuth();
   const incomingConfig = location.state?.config;
   const existingDraft = useMemo(() => loadExamDraft(), []);
   const config = incomingConfig || existingDraft?.config || null;
@@ -175,7 +177,7 @@ export default function ExamRunner() {
       autoSubmitted: auto,
       submittedAt: new Date().toISOString(),
     };
-    saveAttempt(attempt);
+    saveAttempt(attempt, auth.user?.id);
     trackExamCompletion(exam.title, result.percentage, durationMin);
     clearExamDraft();
     navigate(`/exam/results/${id}`, { replace: true });

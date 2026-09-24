@@ -3,6 +3,8 @@
 // Each question has: id, subject, level, topic, difficulty, type, prompt,
 // options (mcq), answer, explanation, marks, optional context (for scenarios).
 
+import { supabase } from '../lib/supabaseClient';
+
 export const SUBJECTS = ['Physics', 'Mathematics'];
 export const LEVELS = ['A-Level', 'UACE'];
 export const DIFFICULTIES = ['Easy', 'Medium', 'Hard'];
@@ -296,10 +298,33 @@ function hashString(str) {
 // ---------- Persistence ----------
 const ATTEMPTS_KEY = 'eduPractice_examAttempts';
 
-export function saveAttempt(attempt) {
+export function saveAttempt(attempt, userId) {
   const existing = listAttempts();
   existing.unshift(attempt);
   localStorage.setItem(ATTEMPTS_KEY, JSON.stringify(existing.slice(0, 50)));
+
+  // Mirror the attempt to Supabase so analytics stay in sync across devices.
+  if (supabase && userId) {
+    pushAttemptToSupabase(attempt, userId).catch((err) => {
+      console.warn('Failed to sync exam attempt to Supabase:', err);
+    });
+  }
+}
+
+async function pushAttemptToSupabase(attempt, userId) {
+  const { error } = await supabase.from('exam_attempts').insert({
+    user_id: userId,
+    exam_id: attempt.id, // keep the local attempt id linkable from analytics
+    title: attempt.title,
+    subtitle: attempt.subtitle,
+    subject: attempt.subject,
+    level: attempt.level,
+    percentage: attempt.percentage ?? 0,
+    breakdown: Array.isArray(attempt.breakdown) ? attempt.breakdown : [],
+    duration_min: attempt.durationMin ?? 0,
+    submitted_at: attempt.submittedAt || new Date().toISOString(),
+  });
+  if (error) throw error;
 }
 export function listAttempts() {
   try { return JSON.parse(localStorage.getItem(ATTEMPTS_KEY) || '[]'); }

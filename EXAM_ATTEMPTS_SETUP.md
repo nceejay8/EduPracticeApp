@@ -115,6 +115,8 @@ USING (
 
 ## Frontend Integration
 
+> **Note:** The app now auto-syncs attempts to Supabase on submission. `saveAttempt(attempt, userId)` in [examBank.js](client-ui/src/data/examBank.js) writes to localStorage **and** inserts a row into `exam_attempts` (with `user_id`, `submitted_at`, and the local attempt id stored in `exam_id`). No extra write code is required.
+
 ### Writing Exam Attempts
 
 In your exam submission handler:

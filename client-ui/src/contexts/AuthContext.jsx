@@ -21,45 +21,12 @@ export function AuthProvider({ children }) {
 
     const initAuth = async () => {
       try {
-        // First check localStorage for session data (from OAuth callback)
-        const storedSession = localStorage.getItem('eduPractice_session');
-        let initialSession = null;
-        
-        if (storedSession) {
-          try {
-            const sessionData = JSON.parse(storedSession);
-            // Check if session is still valid (not expired)
-            if (sessionData.timestamp && sessionData.isAuthenticated) {
-              const sessionAge = Date.now() - sessionData.timestamp;
-              const maxAge = 60 * 60 * 1000; // 1 hour
-              
-              if (sessionAge < maxAge) {
-                initialSession = {
-                  user: sessionData.user,
-                  access_token: sessionData.accessToken,
-                  expires_at: Math.floor((sessionData.timestamp + maxAge) / 1000)
-                };
-              } else {
-                // Clear expired session
-                localStorage.removeItem('eduPractice_session');
-                localStorage.removeItem('supabase.auth.token');
-              }
-            }
-          } catch (parseError) {
-            console.error('Failed to parse stored session:', parseError);
-            localStorage.removeItem('eduPractice_session');
-            localStorage.removeItem('supabase.auth.token');
-          }
-        }
-        
-        // If no valid stored session, check Supabase
-        if (!initialSession) {
-          const { data: { session: supabaseSession } } = await supabase.auth.getSession();
-          initialSession = supabaseSession;
-        }
-        
-        setSession(initialSession);
-        setUser(initialSession?.user || null);
+        // Session is managed by Supabase (auto-refresh + persistence),
+        // so just read the current session and subscribe to changes.
+        const { data: { session: supabaseSession } } = await supabase.auth.getSession();
+
+        setSession(supabaseSession);
+        setUser(supabaseSession?.user || null);
 
         const { data } = supabase.auth.onAuthStateChange((event, newSession) => {
           setSession(newSession);
@@ -113,33 +80,6 @@ export function AuthProvider({ children }) {
     return { success: true, user: result.data.user };
   };
 
-  const signInWithGoogle = async () => {
-    if (!supabase) return { success: false, error: 'Auth not configured' };
-    setError(null);
-    const result = await authService.signInWithGoogle();
-    if (result.error) {
-      const errorMsg = authService.formatAuthError(result.error);
-      setError(errorMsg);
-      return { success: false, error: errorMsg };
-    }
-    
-    // Wait for session to update after OAuth redirect completes
-    const waitForSessionUpdate = new Promise(resolve => {
-      sessionUpdatedRef.current = () => {
-        sessionUpdatedRef.current = null;
-        resolve();
-      };
-      setTimeout(() => {
-        if (sessionUpdatedRef.current) {
-          sessionUpdatedRef.current();
-        }
-      }, 2000);
-    });
-    
-    await waitForSessionUpdate;
-    return { success: true };
-  };
-
   const signUp = async (email, password, userData) => {
     if (!supabase) return { success: false, error: 'Auth not configured' };
     setError(null);
@@ -156,6 +96,18 @@ export function AuthProvider({ children }) {
     if (!supabase) return { success: false, error: 'Auth not configured' };
     setError(null);
     const result = await authService.verifyOtp(email, token, type);
+    if (result.error) {
+      const errorMsg = authService.formatAuthError(result.error);
+      setError(errorMsg);
+      return { success: false, error: errorMsg };
+    }
+    return { success: true, user: result.data.user };
+  };
+
+  const confirmEmail = async (tokenHash, type) => {
+    if (!supabase) return { success: false, error: 'Auth not configured' };
+    setError(null);
+    const result = await authService.confirmEmailToken(tokenHash, type);
     if (result.error) {
       const errorMsg = authService.formatAuthError(result.error);
       setError(errorMsg);
@@ -223,7 +175,7 @@ export function AuthProvider({ children }) {
   const value = {
     user, session, isLoading, error,
     isAuthenticated: !!user,
-    signIn, signInWithGoogle, signUp, verifyOtp,
+    signIn, signUp, verifyOtp, confirmEmail,
     resendVerificationEmail, requestPasswordReset,
     updatePassword, logOut, clearError,
   };

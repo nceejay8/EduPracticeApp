@@ -133,104 +133,27 @@ export const signUpWithEmail = async (email, password, userData = {}) => {
 };
 
 /**
- * Generate a cryptographically secure random state token for CSRF protection.
+ * Verify a one-time OTP for email confirmation or account recovery.
  */
-function generateSecureState() {
-  const array = new Uint8Array(32);
-  crypto.getRandomValues(array);
-  return Array.from(array, (byte) => byte.toString(16).padStart(2, '0')).join('');
-}
-
-/**
- * Initiate Google OAuth sign-in.
- * A CSRF state token is stored in sessionStorage so the callback can
- * verify it via validateOAuthCallback() before accepting the session.
- */
-export const signInWithGoogle = async () => {
+export const verifyOtp = async (email, token, type = 'signup') => {
   try {
-    const state = generateSecureState();
-    // Enhanced state with timestamp for better validation
-    const stateWithTimestamp = btoa(JSON.stringify({
-      token: state,
-      timestamp: Date.now()
-    }));
-    sessionStorage.setItem('oauth_state', stateWithTimestamp);
-
-    const { data, error } = await supabase.auth.signInWithOAuth({
-      provider: 'google',
-      options: {
-        redirectTo: `${window.location.origin}/auth/callback`,
-        queryParams: {
-          access_type: 'offline',
-          prompt: 'consent',
-          state: stateWithTimestamp,
-        },
-        scopes: 'openid profile email',
-      },
-    });
+    const { data, error } = await supabase.auth.verifyOtp({ email, token, type });
 
     if (error) return { error, data: null };
-    return { error: null, data };
+
+    return { error: null, data: { user: data.user, session: data.session } };
   } catch (err) {
     return { error: err, data: null };
   }
 };
 
 /**
- * FIX: Validate the OAuth callback state parameter against the value stored
- * before the redirect began.  Without this check the CSRF state token stored
- * by signInWithGoogle() was never verified, making the protection a no-op.
- *
- * Call this at the top of your /auth/callback route handler.
- *
- * @param {string} returnedState  The `state` query-param from the OAuth redirect URL.
- * @returns {{ valid: boolean, error: string|null }}
+ * Confirm the user's email from the confirmation-link redirect
+ * (Supabase sends `?token_hash=<hash>&type=signup` to the redirect URL).
  */
-export const validateOAuthCallback = (returnedState) => {
-  const storedState = sessionStorage.getItem('oauth_state');
-  sessionStorage.removeItem('oauth_state'); // consume immediately — one-time use
-
-  if (!storedState) {
-    return { valid: false, error: 'No OAuth state found. Possible CSRF attack or stale tab.' };
-  }
-
-  if (!returnedState || returnedState !== storedState) {
-    return { valid: false, error: 'OAuth state mismatch. Request rejected.' };
-  }
-
-  // Additional validation: check if state is recent (within 5 minutes)
+export const confirmEmailToken = async (tokenHash, type) => {
   try {
-    const stateData = JSON.parse(atob(storedState));
-    const now = Date.now();
-    const stateAge = now - stateData.timestamp;
-    const maxAge = 5 * 60 * 1000; // 5 minutes
-    
-    if (stateAge > maxAge) {
-      return { valid: false, error: 'OAuth state expired. Please try again.' };
-    }
-    
-    // For enhanced format, we need to validate the returned state matches the stored token
-    if (stateData.token && returnedState === storedState) {
-      return { valid: true, error: null };
-    }
-  } catch (parseError) {
-    // If we can't parse the state, it's likely not our enhanced format
-    console.warn('Using legacy OAuth state format');
-    // For legacy format, just do direct comparison
-    if (returnedState === storedState) {
-      return { valid: true, error: null };
-    }
-  }
-
-  return { valid: true, error: null };
-};
-
-/**
- * Verify a one-time OTP for email confirmation or account recovery.
- */
-export const verifyOtp = async (email, token, type = 'signup') => {
-  try {
-    const { data, error } = await supabase.auth.verifyOtp({ email, token, type });
+    const { data, error } = await supabase.auth.verifyOtp({ token_hash: tokenHash, type });
 
     if (error) return { error, data: null };
 
@@ -365,9 +288,6 @@ export const signOut = async (email = null) => {
 function clearAuthStorage(email = null) {
   // Remove the rate-limit entry for this specific email when known
   if (email) clearRateLimit(email);
-
-  // Remove the OAuth CSRF state token (one-time use)
-  sessionStorage.removeItem('oauth_state');
 
   // Remove any persisted user preferences tied to this session
   localStorage.removeItem('edupractice_user_prefs');

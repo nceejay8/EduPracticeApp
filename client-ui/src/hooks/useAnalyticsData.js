@@ -4,7 +4,9 @@ import { computeAnalytics, listAttempts } from '../data/examBank';
 
 function rowToAttempt(row) {
   return {
-    id: row.id,
+    // Prefer the local attempt id (stored in exam_id) so result-viewer links
+    // still resolve to the localStorage attempt taken on this device.
+    id: row.exam_id || row.id,
     title: row.title || 'Exam',
     subtitle: row.subtitle || '',
     subject: row.subject,

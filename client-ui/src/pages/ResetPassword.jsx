@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { GraduationCapIcon, LockIcon, CheckIcon, CircleAlert } from 'lucide-react';
+import { GraduationCapIcon, LockIcon, MailIcon, CheckIcon, CircleAlert } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import * as authService from '../services/authService';
 
@@ -10,6 +10,11 @@ export default function ResetPassword() {
   const [searchParams] = useSearchParams();
   const auth = useAuth();
 
+  const [requestEmail, setRequestEmail] = useState('');
+  const [requestError, setRequestError] = useState('');
+  const [requestSent, setRequestSent] = useState(false);
+  const [requestLoading, setRequestLoading] = useState(false);
+
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [passwordStrength, setPasswordStrength] = useState(null);
@@ -17,6 +22,7 @@ export default function ResetPassword() {
   const [success, setSuccess] = useState(false);
   const [loading, setLoading] = useState(false);
   const [hasValidToken, setHasValidToken] = useState(false);
+  const [hadToken, setHadToken] = useState(false);
   const [isValidating, setIsValidating] = useState(true);
 
   useEffect(() => {
@@ -24,17 +30,29 @@ export default function ResetPassword() {
       const token = searchParams.get('token');
       const type = searchParams.get('type');
 
+      // No token in the URL → show the "request reset email" form
+      if (!token && !type) {
+        setHadToken(false);
+        setHasValidToken(false);
+        setIsValidating(false);
+        return;
+      }
+
+      setHadToken(true);
+
       if (!authService.validateRecoveryToken(token, type)) {
         setError('Invalid or missing reset link. Please request a new password reset.');
+        setHasValidToken(false);
         setIsValidating(false);
         return;
       }
 
       try {
         const { session, error: sessionError } = await authService.getSession();
-        
+
         if (sessionError || !session) {
           setError('This reset link has expired or is invalid. Please request a new password reset.');
+          setHasValidToken(false);
           setIsValidating(false);
           return;
         }
@@ -63,6 +81,31 @@ export default function ResetPassword() {
       navigate('/dashboard');
     }
   }, [auth.isAuthenticated, navigate]);
+
+  const handleRequestReset = async (e) => {
+    e.preventDefault();
+    setRequestError('');
+
+    if (!requestEmail) {
+      setRequestError('Please enter your email address.');
+      return;
+    }
+
+    setRequestLoading(true);
+    try {
+      const result = await auth.requestPasswordReset(requestEmail);
+
+      if (result.success) {
+        setRequestSent(true);
+      } else {
+        setRequestError(result.error || 'Failed to send reset email. Please try again.');
+      }
+    } catch (err) {
+      setRequestError(err?.message || 'Failed to send reset email. Please try again.');
+    } finally {
+      setRequestLoading(false);
+    }
+  };
 
   const handleResetPassword = async (e) => {
     e.preventDefault();
@@ -126,13 +169,87 @@ export default function ResetPassword() {
         </div>
 
         <div className="text-center mb-6">
-          <h1 className="text-2xl sm:text-3xl font-bold text-white">Reset Password</h1>
+          <h1 className="text-2xl sm:text-3xl font-bold text-white">
+            {hasValidToken ? 'Reset Password' : 'Forgot Password'}
+          </h1>
           <p className="text-sm sm:text-base text-gray-400 mt-2">
-            {hasValidToken ? 'Enter your new password' : 'Invalid reset link'}
+            {hasValidToken
+              ? 'Enter your new password'
+              : requestSent
+              ? 'Check your inbox'
+              : 'Enter your email and we\'ll send you a reset link'}
           </p>
         </div>
 
-        {!hasValidToken ? (
+        {/* Request reset email */}
+        {!hadToken && !requestSent && (
+          <form onSubmit={handleRequestReset} className="space-y-4">
+            {requestError && (
+              <div className="px-4 py-3 bg-red-500/10 border border-red-500/30 rounded-lg text-red-400 text-sm flex items-start gap-2">
+                <CircleAlert className="w-5 h-5 flex-shrink-0 mt-0.5" />
+                <span>{requestError}</span>
+              </div>
+            )}
+
+            <div>
+              <label htmlFor="requestEmail" className="block text-sm font-medium text-gray-300 mb-2">
+                Email Address
+              </label>
+              <div className="relative">
+                <MailIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500" />
+                <input
+                  id="requestEmail"
+                  type="email"
+                  placeholder="you@example.com"
+                  value={requestEmail}
+                  onChange={(e) => {
+                    setRequestEmail(e.target.value);
+                    if (requestError) setRequestError('');
+                  }}
+                  className="w-full pl-11 pr-4 py-3 bg-[#1a1f2e] border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:border-amber-400 transition-colors text-sm"
+                  required
+                  autoComplete="email"
+                  disabled={requestLoading}
+                />
+              </div>
+            </div>
+
+            <button
+              type="submit"
+              disabled={requestLoading}
+              className="w-full py-3 bg-amber-500 text-gray-900 rounded-lg font-semibold hover:bg-amber-400 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+            >
+              {requestLoading ? 'Sending reset link...' : 'Send reset link'}
+            </button>
+
+            <button
+              type="button"
+              onClick={() => navigate('/login')}
+              className="w-full text-gray-400 text-sm hover:text-gray-300 transition-colors"
+            >
+              ← Back to login
+            </button>
+          </form>
+        )}
+
+        {/* Reset email sent */}
+        {!hadToken && requestSent && (
+          <div className="space-y-4">
+            <div className="px-4 py-3 bg-green-500/10 border border-green-500/30 rounded-lg text-green-400 text-sm flex items-center gap-2">
+              <CheckIcon className="w-5 h-5 flex-shrink-0" />
+              <span>If that email is registered, a password reset link is on its way. Check your inbox and spam folder.</span>
+            </div>
+            <button
+              onClick={() => navigate('/login')}
+              className="w-full py-3 bg-amber-500 text-gray-900 rounded-lg font-semibold hover:bg-amber-400 transition-colors"
+            >
+              Back to Login
+            </button>
+          </div>
+        )}
+
+        {/* Token present but invalid / expired */}
+        {hadToken && !hasValidToken && (
           <div className="space-y-4">
             <div className="px-4 py-3 bg-red-500/10 border border-red-500/30 rounded-lg text-red-400 text-sm flex items-start gap-2">
               <CircleAlert className="w-5 h-5 flex-shrink-0 mt-0.5" />
@@ -145,14 +262,19 @@ export default function ResetPassword() {
               Back to Login
             </button>
           </div>
-        ) : success ? (
+        )}
+
+        {/* Valid token → set new password */}
+        {hasValidToken && success && (
           <div className="space-y-4">
             <div className="px-4 py-3 bg-green-500/10 border border-green-500/30 rounded-lg text-green-400 text-sm flex items-start gap-2">
               <CheckIcon className="w-5 h-5 flex-shrink-0 mt-0.5" />
               <span>Password updated successfully! Redirecting to login...</span>
             </div>
           </div>
-        ) : (
+        )}
+
+        {hasValidToken && !success && (
           <form onSubmit={handleResetPassword} className="space-y-4">
             {error && (
               <div className="px-4 py-3 bg-red-500/10 border border-red-500/30 rounded-lg text-red-400 text-sm flex items-start gap-2">
