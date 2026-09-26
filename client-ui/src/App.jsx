@@ -3,6 +3,7 @@ import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import DashboardUI from './pages/DashboardUI';
 import Admin from './pages/Admin';
 import Practice from './pages/Practice';
+import Syllabus from './pages/Syllabus';
 import Analytics from './pages/Analytics';
 import MockExams from './pages/MockExams';
 import ExamRunner from './pages/ExamRunner';
@@ -47,6 +48,7 @@ function App() {
                     <Route path="/" element={<DashboardUI />} />
                     <Route path="/dashboard" element={<DashboardUI />} />
                     <Route path="/practice" element={<Practice />} />
+                    <Route path="/syllabus" element={<Syllabus />} />
                     <Route path="/analytics" element={<Analytics />} />
                     <Route path="/mock-exams" element={<MockExams />} />
                     <Route path="/profile" element={<Profile />} />

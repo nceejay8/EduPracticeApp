@@ -2,6 +2,8 @@
 // Drawn from real past papers (S.6 Physics Paper 1, UACE Math Paper 2 2026 pre-registration)
 // Each scenario = one full exam question with mark scheme.
 
+import { normalizeSubject, resolveContentRef, getTopic } from './syllabus';
+
 // ─── LocalStorage helpers ──────────────────────────────────────────────────
 const CUSTOM_KEY       = 'eduPractice_customScenarios';
 const CUSTOM_MOCKS_KEY = 'eduPractice_customMockExams';
@@ -50,6 +52,60 @@ export function pickScenarioForTopic(subject, topicName) {
   const dayKey = new Date().toISOString().slice(0, 10);
   const seed   = (dayKey + topicName).split('').reduce((h, c) => (h * 31 + c.charCodeAt(0)) & 0xFFFFFF, 0);
   return pool[seed % pool.length];
+}
+
+// Picks the scenarios that belong to one canonical topic.
+//
+// This asks `resolveContentRef` — the same attribution rule the progress engine
+// uses in syllabusProgress.js — rather than comparing topic strings itself. That
+// matters: a scenario tagged ['Modern Physics', 'Quantum Mechanics'] is
+// *specifically* about quantum mechanics, so it must not be served for the
+// sibling topics in Modern Physics, and must not be counted towards them either.
+// If the picker and the coverage map disagreed on that, the outline would
+// promise material the workboard could not deliver.
+function scenariosForCanonicalTopic(subjectId, topicId) {
+  const subject = normalizeSubject(subjectId);
+  const found = getTopic(subjectId, topicId);
+  if (!subject || !found) return [];
+
+  const all = [...PRACTICE_SCENARIOS, ...getCustomScenarios()]
+    .filter(s => normalizeSubject(s.subject) === subject);
+
+  // 1. Scenarios that resolve to this exact topic (or one of its subtopics).
+  const exact = all.filter(s => {
+    const ref = resolveContentRef(subject, s.topic, s.topics);
+    return ref && (ref.level === 'topic' || ref.level === 'subtopic') && ref.topicId === topicId;
+  });
+  if (exact.length > 0) return exact;
+
+  // 2. Otherwise a scenario that resolves to the parent *chapter* and nothing
+  //    more specific. Chapter-wide material is genuinely usable for any topic in
+  //    that chapter, which is why the coverage map credits it to each of them.
+  const chapterId = found.chapter.id;
+  return all.filter(s => {
+    const ref = resolveContentRef(subject, s.topic, s.topics);
+    return ref && ref.level === 'chapter' && ref.chapterId === chapterId;
+  });
+}
+
+// Deterministic daily pick: the question changes day to day but is stable within
+// a session, so "continue where you left off" is not undone by a re-render.
+function seededPick(pool, seedKey) {
+  if (pool.length === 0) return null;
+  const dayKey = new Date().toISOString().slice(0, 10);
+  const seed = (dayKey + seedKey).split('').reduce((h, c) => (h * 31 + c.charCodeAt(0)) & 0xFFFFFF, 0);
+  return pool[seed % pool.length];
+}
+
+export function pickScenarioForSyllabusTopic(subjectId, topicId) {
+  return seededPick(scenariosForCanonicalTopic(subjectId, topicId), topicId);
+}
+
+// Every scenario that belongs to a canonical topic, for the syllabus page's
+// "what's available here" count. Mirrors pickScenarioForSyllabusTopic exactly,
+// so the count shown on /syllabus is the count the workboard can actually serve.
+export function getScenariosForSyllabusTopic(subjectId, topicId) {
+  return scenariosForCanonicalTopic(subjectId, topicId);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -861,7 +917,7 @@ In a separate vector problem, two forces F₁ = 3i + 4j N and F₂ = -2i + 5j N 
 
   // ── Item 8: Pure Mathematics — Calculus (UACE 2025) ─────────────────────────────────────────────
   {
-    id: 'mat-calc-001',
+    id: 'mat-calc-002',
     subject: 'mathematics',
     topic: 'Pure Mathematics',
     topics: ['Pure Mathematics'],

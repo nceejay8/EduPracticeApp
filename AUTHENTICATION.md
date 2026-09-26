@@ -325,12 +325,61 @@ For social login (Google, GitHub, etc.):
 // Automatic token refresh (already configured)
 autoRefreshToken: true
 
-// Detect session in URL (for OAuth only)
-detectSessionInUrl: true
+// Left off: this app uses password and OTP email flows only, so there is no
+// OAuth callback fragment to detect. Enabling it would also let a crafted
+// `#access_token=...` link in on sign-in.
+detectSessionInUrl: false
 
 // Persist session (secure storage)
 persistSession: true
 ```
+
+### 7. Session Lifetime (7 days)
+A signed-in session lasts **7 days**, measured from sign-in, after which the
+student is signed out and asked to sign in again. It is an absolute window, not
+an idle timeout: activity does not extend it.
+
+This is enforced in `client-ui/src/lib/sessionPolicy.js`, not in Supabase.
+
+- The start instant is kept in `localStorage` under
+  `edupractice_session_start`, so closing the tab or restarting the browser does
+  not end the session.
+- On load, a session with no marker is **adopted** with a full 7-day window, so
+  students already signed in when this shipped are not signed out by a policy
+  that did not exist when their session began.
+- An already-expired session is ended *before* any protected route renders, so an
+  expired session is never briefly usable.
+- Timers are throttled hard in a backgrounded tab and a sleeping laptop, so the
+  deadline is re-checked on `focus` and `visibilitychange` as well as on a timer.
+- Why the session ended is stored in `sessionStorage` and read once by the login
+  page, which is what lets it say *"you were signed out after 7 days"* instead of
+  showing an unexplained login form.
+
+**The client policy is a cap, not the source of truth.** Supabase's own session
+and refresh-token settings are what actually limit a session; if they are
+configured to expire *before* 7 days, students are signed out earlier. Those
+settings live in the Supabase dashboard, not in this repository, so they cannot
+be changed from code here.
+
+### 8. Offline Sessions
+
+A student with no network cannot refresh an access token, and Supabase ends the
+session locally even though it is still valid server-side. Signing them out at
+that point discards a working session for the crime of being on a train, so
+`AuthContext` does this instead:
+
+- On a `SIGNED_OUT` event with no network, the session is **held open** and
+  `isOffline` is set. The student keeps their session and all local work.
+- This is a deferral, not a bypass. When connectivity returns, the app calls
+  `getSession()` and asks the server whether the session is genuinely still
+  valid. If it is not, the student is signed out then — they simply were not told
+  about it while they had no way to act on it.
+- A real expiry (the 7-day window elapsing) is unaffected: that is enforced
+  locally and does not depend on the network.
+
+`navigator.onLine` only reports whether a network interface exists, not whether
+the internet is reachable, so it is treated as a hint. A "true" that lies simply
+causes a failed request, which the sync queue retries.
 
 ## Error Handling
 
@@ -404,6 +453,18 @@ If migrating from token-based auth:
 - Check browser localStorage is enabled
 - Verify Supabase `persistSession: true`
 - Check browser privacy/incognito mode
+
+### Signed Out After 7 Days
+- Working as intended if `edupractice_session_start` in localStorage is 7 days
+  old — the window is absolute and does not extend with activity
+- Signed out *earlier* than 7 days? Check the Supabase session and refresh-token
+  settings in the dashboard; the client policy can only shorten a session, never
+  lengthen it
+- localStorage blocked (private browsing, enterprise policy) means the 7-day
+  window cannot be tracked; the app degrades to Supabase's own session lifetime
+  rather than failing
+- A stale *"you were signed out after 7 days"* message on the login page means
+  `edupractice_signout_reason` survived in sessionStorage; it is cleared on read
 
 ### Rate Limit Not Working
 - Verify localStorage is enabled

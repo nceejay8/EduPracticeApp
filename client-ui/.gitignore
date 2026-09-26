@@ -12,7 +12,12 @@ node_modules
 dist
 dist-ssr
 *.local
+# Explicit as well as the *.local catch-all above: a mis-named or newly added
+# env file must never reach the repo. VITE_ vars are baked into the client
+# bundle, so a committed key is a public key.
 .env
+.env.*
+!.env.example
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

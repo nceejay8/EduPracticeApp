@@ -47,6 +47,7 @@ export default function ExamRunner() {
       difficulty: config.difficulty,
       count: config.count || 10,
       topics: config.topics || null,
+      topicId: config.topicId || null,
       scenarioCount: config.scenarioCount || 0,
     });
     return {

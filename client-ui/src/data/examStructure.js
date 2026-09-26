@@ -1,4 +1,13 @@
 // Uganda Exam Structure - UNEB Standards
+//
+// This module is a compatibility shim. The authoritative subject structure now
+// lives in `syllabus.js`; everything exported here is derived from it so the
+// topic lists used by Practice, Mock Exams and Search can no longer drift apart
+// or drift away from the /syllabus outline.
+
+import { SYLLABUS, getSubject, listChapters } from './syllabus';
+import { getTopicCoverage, getSubjectCoverage } from './syllabusProgress';
+
 export const examLevels = {
   ALEVEL: {
     id: 'a-level',
@@ -16,57 +25,55 @@ export const examLevels = {
   }
 };
 
-export const physicsTopics = {
-  ALEVEL: [
-    {
-      id: 'mechanics-alevel',
-      name: 'Classical Mechanics',
-      subtopics: ['Circular Motion', 'Gravitation', 'Elasticity', 'Fluid Mechanics'],
-      questions: 28,
-      difficulty: 'Intermediate'
-    },
-    {
-      id: 'optics-alevel',
-      name: 'Optics',
-      subtopics: ['Lenses', 'Mirrors', 'Wave Optics', 'Interference & Diffraction'],
-      questions: 22,
-      difficulty: 'Advanced'
-    },
-    {
-      id: 'modern-alevel',
-      name: 'Modern Physics',
-      subtopics: ['Nuclear Physics', 'Atomic Structure', 'Quantum Mechanics', 'Relativity'],
-      questions: 26,
-      difficulty: 'Advanced'
-    }
-  ]
-};
+// A-Level and UACE currently share one topic tree (mirroring LEVEL_EQUIVALENTS
+// in examBank.js), so both keys resolve to the same derived chapters.
+const LEVEL_KEYS = ['ALEVEL', 'UACE'];
 
-export const mathematicsTopics = {
-  ALEVEL: [
-    {
-      id: 'pure-math-alevel',
-      name: 'Pure Mathematics',
-      subtopics: ['Complex Numbers', 'Matrices', 'Vectors', 'Proof by Induction'],
-      questions: 32,
-      difficulty: 'Advanced'
-    },
-    {
-      id: 'applied-alevel',
-      name: 'Applied Mathematics',
-      subtopics: ['Mechanics', 'Optimization', 'Numerical Methods', 'Differential Equations'],
-      questions: 28,
-      difficulty: 'Advanced'
-    },
-    {
-      id: 'stats-alevel',
-      name: 'Statistics & Probability',
-      subtopics: ['Distribution Theory', 'Correlation & Regression', 'Chi-squared Tests', 'Confidence Intervals'],
-      questions: 26,
-      difficulty: 'Advanced'
-    }
-  ]
-};
+// Derives the legacy chapter shape from the canonical outline:
+//   { id, name, subtopics: string[], questions, difficulty }
+//
+// `subtopics` stays a flat string array of the official topic names because
+// existing consumers (SearchModal description text, MockExams "Covers:" line,
+// Practice subject-card chips) all read it as strings.
+function deriveChapters(subjectId) {
+  return listChapters(subjectId).map(chapter => ({
+    id: chapter.id,
+    name: chapter.name,
+    subtopics: chapter.topics.map(topic => topic.name),
+    topicIds: chapter.topics.map(topic => topic.id),
+    // Exam questions only. `coverage.total` also counts AI practice scenarios,
+    // including chapter-wide ones that every topic in the chapter shares, so it
+    // would overstate what a topic exam can actually serve.
+    questions: chapter.topics.reduce(
+      (sum, topic) => sum + getTopicCoverage(subjectId, topic.id).exam,
+      0
+    ),
+    difficulty: 'Intermediate to Advanced'
+  }));
+}
+
+function buildSubjectTopics(subjectId) {
+  const derived = deriveChapters(subjectId);
+  return LEVEL_KEYS.reduce((acc, levelKey) => {
+    acc[levelKey] = derived;
+    return acc;
+  }, {});
+}
+
+export const physicsTopics = buildSubjectTopics('physics');
+export const mathematicsTopics = buildSubjectTopics('mathematics');
+
+// Convenience passthroughs for new code — prefer these over the level-keyed
+// lookups above, which only exist for backwards compatibility.
+export const SUBJECTS = { physics: getSubject('physics'), mathematics: getSubject('mathematics') };
+
+export function getSubjectChapters(subjectId) {
+  return deriveChapters(subjectId);
+}
+
+export function getSubjectContentCount(subjectId) {
+  return getSubjectCoverage(subjectId).items;
+}
 
 // Uganda-specific practice scenarios
 export const ugandaContextScenarios = {
@@ -226,3 +233,5 @@ export const additionalMockExams = [
     }
   }
 ];
+
+export { SYLLABUS };

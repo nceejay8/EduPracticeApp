@@ -12,6 +12,10 @@ export default function Login() {
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
+  // Why the student landed back here. A week-long session expiring mid-lesson is
+  // a different experience from having been bounced, and the page should say so
+  // rather than presenting an unexplained login form.
+  const [notice, setNotice] = useState(null)
 
   // Redirect to dashboard if already authenticated
   useEffect(() => {
@@ -19,6 +23,13 @@ export default function Login() {
       navigate('/dashboard')
     }
   }, [auth.isAuthenticated, navigate])
+
+  useEffect(() => {
+    const reason = auth.takeSignOutReason()
+    if (reason === 'expired') {
+      setNotice(`You were signed out after ${auth.sessionDays} days. Sign in again to pick up where you left off.`)
+    }
+  }, [])
 
   // Clear error as the user starts typing
   useEffect(() => {
@@ -85,6 +96,15 @@ export default function Login() {
           <p className="text-sm sm:text-base text-gray-400 text-center mb-8 sm:mb-10">
             Sign in to continue your learning journey
           </p>
+
+          {notice && (
+            <div className="mb-6 px-4 py-3 bg-amber-500/10 border border-amber-500/30 rounded-lg text-amber-300 text-sm text-center flex items-center justify-center gap-2">
+              <svg className="w-5 h-5 shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 001.5.87l2.5-3A1 1 0 0011 6.5h-1V6z" clipRule="evenodd" />
+              </svg>
+              <span>{notice}</span>
+            </div>
+          )}
 
           {error && (
             <div className="mb-6 px-4 py-3 bg-red-500/10 border border-red-500/30 rounded-lg text-red-400 text-sm text-center flex items-center justify-center gap-2">

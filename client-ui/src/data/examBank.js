@@ -3,7 +3,8 @@
 // Each question has: id, subject, level, topic, difficulty, type, prompt,
 // options (mcq), answer, explanation, marks, optional context (for scenarios).
 
-import { supabase } from '../lib/supabaseClient';
+import { enqueueSync } from '../lib/syncQueue';
+import { resolveTopicRef } from './syllabus';
 
 export const SUBJECTS = ['Physics', 'Mathematics'];
 export const LEVELS = ['A-Level', 'UACE'];
@@ -18,6 +19,22 @@ function matchesRequestedLevel(questionLevel, requestedLevel) {
   if (!requestedLevel) return true;
   const allowed = LEVEL_EQUIVALENTS[requestedLevel] || new Set([requestedLevel]);
   return allowed.has(questionLevel);
+}
+
+// Questions tag themselves with legacy free-text topic strings ('Energy & Power',
+// 'Gas Laws', 'Classical Mechanics') that do not match the official outline names
+// used by the syllabus. Resolving each question to a canonical topic id once means
+// a topic exam can be keyed on ids and still find the right questions. Cached
+// because the alias index is static and buildExam runs on every exam start.
+const questionTopicIdCache = new Map();
+
+export function questionTopicId(question) {
+  if (!question || !question.id) return null;
+  if (questionTopicIdCache.has(question.id)) return questionTopicIdCache.get(question.id);
+  const ref = resolveTopicRef(question.topic, question.subject);
+  const id = ref?.topicId || null;
+  questionTopicIdCache.set(question.id, id);
+  return id;
 }
 
 // ---------- Multiple-choice / numeric question pool ----------
@@ -152,14 +169,15 @@ export function buildExam({
   difficulty,
   count = 10,
   topics = null,
+  topicId = null,
   scenarioCount = 0,
 } = {}) {
   // ---- pick scenarios first ----
-  const scenarios = pickScenarios({ subject, level, scenarioCount, count });
+  const scenarios = pickScenarios({ subject, level, scenarioCount, count, topicId });
 
   // ---- pick MCQ/numeric questions to fill the rest ----
   const targetMcq = Math.max(0, count - scenarios.length);
-  const mcqs = pickFromBank({ subject, level, difficulty, topics, count: targetMcq });
+  const mcqs = pickFromBank({ subject, level, difficulty, topics, topicId, count: targetMcq });
 
   // Combine: scenarios first (good warm-up framing), then MCQ pool
   const merged = [...scenarios, ...mcqs].slice(0, count);
@@ -167,9 +185,14 @@ export function buildExam({
   return merged.map((q, idx) => ({ ...q, position: idx + 1 }));
 }
 
-function pickScenarios({ subject, level, scenarioCount, count }) {
+function pickScenarios({ subject, level, scenarioCount, count, topicId }) {
   if (!scenarioCount || scenarioCount <= 0) return [];
   let pool = [...scenarioBank];
+  if (topicId) {
+    pool = pool.filter(q => questionTopicId(q) === topicId);
+    const wanted = Math.min(scenarioCount, count, pool.length);
+    return seededShuffle(pool, `sce-${topicId}-${Date.now()}`).slice(0, wanted);
+  }
   if (subject) pool = pool.filter(q => q.subject === subject);
   if (level) pool = pool.filter(q => matchesRequestedLevel(q.level, level));
   // If too few, widen by removing level filter.
@@ -181,12 +204,33 @@ function pickScenarios({ subject, level, scenarioCount, count }) {
   return seededShuffle(pool, `sce-${subject}-${level}-${Date.now()}`).slice(0, wanted);
 }
 
-function pickFromBank({ subject, level, difficulty, topics, count }) {
+function pickFromBank({ subject, level, difficulty, topics, topicId, count }) {
   if (count <= 0) return [];
+
+  // A topic exam must contain only that topic's questions. Widening the pool here
+  // would hand a student a paper labelled "Forces and Equilibrium" that silently
+  // contains wave questions, so the relaxation steps below are skipped.
+  if (topicId) {
+    const pool = questionBank.filter(
+      q => questionTopicId(q) === topicId && (!subject || q.subject === subject) && matchesRequestedLevel(q.level, level)
+    );
+    if (pool.length === 0) return [];
+    return seededShuffle(pool, `topic-${topicId}-${Date.now()}`).slice(0, count);
+  }
+
   let pool = [...questionBank];
   if (subject) pool = pool.filter(q => q.subject === subject);
   if (level) pool = pool.filter(q => matchesRequestedLevel(q.level, level));
-  if (topics && topics.length > 0) pool = pool.filter(q => topics.includes(q.topic));
+  if (topics && topics.length > 0) {
+    // Resolve each requested topic name once; a name that does not resolve
+    // (an ad-hoc custom topic) still matches literally.
+    const ids = topics.map(name => resolveTopicRef(name, subject)?.topicId || null);
+    pool = pool.filter(q => {
+      const qid = questionTopicId(q);
+      if (qid) return ids.includes(qid);
+      return topics.includes(q.topic);
+    });
+  }
 
   if (difficulty) {
     const exact = pool.filter(q => q.difficulty === difficulty);
@@ -298,21 +342,22 @@ function hashString(str) {
 // ---------- Persistence ----------
 const ATTEMPTS_KEY = 'eduPractice_examAttempts';
 
+// Local-first. The local write is the one that must never fail: it is what the
+// student sees immediately, offline or not. Syncing is queued, not attempted
+// inline, because an inline push that fails is an attempt that silently never
+// reaches the server — see lib/syncQueue.js.
 export function saveAttempt(attempt, userId) {
   const existing = listAttempts();
   existing.unshift(attempt);
   localStorage.setItem(ATTEMPTS_KEY, JSON.stringify(existing.slice(0, 50)));
 
-  // Mirror the attempt to Supabase so analytics stay in sync across devices.
-  if (supabase && userId) {
-    pushAttemptToSupabase(attempt, userId).catch((err) => {
-      console.warn('Failed to sync exam attempt to Supabase:', err);
-    });
+  if (userId) {
+    enqueueSync({ id: attempt.id, table: 'exam_attempts', row: examAttemptToRow(attempt, userId) });
   }
 }
 
-async function pushAttemptToSupabase(attempt, userId) {
-  const { error } = await supabase.from('exam_attempts').insert({
+export function examAttemptToRow(attempt, userId) {
+  return {
     user_id: userId,
     exam_id: attempt.id, // keep the local attempt id linkable from analytics
     title: attempt.title,
@@ -323,8 +368,7 @@ async function pushAttemptToSupabase(attempt, userId) {
     breakdown: Array.isArray(attempt.breakdown) ? attempt.breakdown : [],
     duration_min: attempt.durationMin ?? 0,
     submitted_at: attempt.submittedAt || new Date().toISOString(),
-  });
-  if (error) throw error;
+  };
 }
 export function listAttempts() {
   try { return JSON.parse(localStorage.getItem(ATTEMPTS_KEY) || '[]'); }

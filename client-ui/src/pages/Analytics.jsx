@@ -36,13 +36,28 @@ export default function Analytics() {
             <h1 className="text-3xl sm:text-4xl font-bold tracking-tight text-white mb-2">{t('nav.analytics')}</h1>
             <div className="flex items-center gap-2 flex-wrap">
               <p className="text-sm text-slate-400">Metrics calculated from your actual exam attempts.</p>
+              {/* Three states, not two. 'merged' means some attempts are still
+                  server-side pending (taken offline), so calling that "Local
+                  storage" would misdescribe data that is mostly synced. */}
               <span className={`inline-flex items-center gap-1.5 text-xs font-semibold px-2 py-0.5 rounded-full ${
                 source === 'supabase'
                   ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
-                  : 'bg-white/5 text-slate-500 border border-white/10'
+                  : source === 'merged'
+                    ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20'
+                    : 'bg-white/5 text-slate-500 border border-white/10'
               }`}>
-                <span className={`w-1.5 h-1.5 rounded-full ${source === 'supabase' ? 'bg-emerald-400 animate-pulse' : 'bg-slate-500'}`} />
-                {source === 'supabase' ? 'Live · Supabase' : 'Local storage'}
+                <span className={`w-1.5 h-1.5 rounded-full ${
+                  source === 'supabase'
+                    ? 'bg-emerald-400 animate-pulse'
+                    : source === 'merged'
+                      ? 'bg-amber-400 animate-pulse'
+                      : 'bg-slate-500'
+                }`} />
+                {source === 'supabase'
+                  ? 'Live · Supabase'
+                  : source === 'merged'
+                    ? 'Syncing offline results'
+                    : 'Local storage'}
               </span>
               <button
                 onClick={refresh}

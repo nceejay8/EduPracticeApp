@@ -291,7 +291,7 @@ export default function DashboardUI() {
                   />
                 </div>
                 <Link
-                  to="/practice"
+                  to="/syllabus"
                   className="block w-full mt-6 py-3 rounded-lg border border-white/10 hover:border-[#f99c00]/30 text-sm font-medium text-slate-300 hover:text-white hover:bg-white/5 transition-all active:scale-95 text-center"
                 >
                   {t('dashboard.viewDetailedSyllabus')}

@@ -5,6 +5,10 @@ const NotificationsContext = createContext(null);
 
 const READ_KEY   = 'edupractice_notif_read';
 const PREFS_KEY  = 'edupractice_user_prefs';
+// Cleared notifications cannot just be dropped from state: the list is derived
+// from analytics on every refresh(), so anything removed without a record here
+// would reappear the moment the student answered a question.
+const DISMISSED_KEY = 'edupractice_notif_dismissed';
 
 function loadReadIds() {
   try { return new Set(JSON.parse(localStorage.getItem(READ_KEY) || '[]')); }
@@ -13,6 +17,16 @@ function loadReadIds() {
 
 function saveReadIds(ids) {
   try { localStorage.setItem(READ_KEY, JSON.stringify([...ids])); }
+  catch {}
+}
+
+function loadDismissedIds() {
+  try { return new Set(JSON.parse(localStorage.getItem(DISMISSED_KEY) || '[]')); }
+  catch { return new Set(); }
+}
+
+function saveDismissedIds(ids) {
+  try { localStorage.setItem(DISMISSED_KEY, JSON.stringify([...ids])); }
   catch {}
 }
 
@@ -161,7 +175,9 @@ function generateNotifications(analytics, userPrefs) {
   const tipIndex = new Date().getDay() % MAESTRO_TIPS.length;
   const tip = MAESTRO_TIPS[tipIndex];
   notifs.push({
-    id: tip.id,
+    // Date-scoped so that clearing it dismisses today's tip rather than that
+    // tip forever — the same tip comes round again in eight days.
+    id: `${tip.id}_${todayKey}`,
     type: 'tip',
     icon: 'solar:diploma-bold',
     iconColor: 'text-blue-400',
@@ -212,6 +228,7 @@ function timeAgo(ts) {
 export function NotificationsProvider({ children }) {
   const [notifications, setNotifications] = useState([]);
   const [readIds, setReadIds] = useState(loadReadIds);
+  const [dismissedIds, setDismissedIds] = useState(loadDismissedIds);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
 
@@ -235,7 +252,13 @@ export function NotificationsProvider({ children }) {
 
   useEffect(() => { refresh(); }, [refresh]);
 
-  const unreadCount = notifications.filter(n => !readIds.has(n.id)).length;
+  // Dismissals are filtered at render rather than inside generateNotifications,
+  // so a refresh after clearing can never resurrect what the student removed.
+  const visible = notifications.filter(n => !dismissedIds.has(n.id));
+
+  // Counted from the visible list: a dismissed notification must not keep
+  // inflating the badge after it has been cleared.
+  const unreadCount = visible.filter(n => !readIds.has(n.id)).length;
 
   const markRead = useCallback((id) => {
     setReadIds(prev => {
@@ -253,12 +276,24 @@ export function NotificationsProvider({ children }) {
   }, [notifications]);
 
   const clearAll = useCallback(() => {
-    const next = new Set(notifications.map(n => n.id));
-    saveReadIds(next);
-    setReadIds(next);
+    setDismissedIds(prev => {
+      const next = new Set(prev);
+      notifications.forEach(n => next.add(n.id));
+      saveDismissedIds(next);
+      return next;
+    });
+    // Also clear the read state, otherwise the ids stay in the read set forever
+    // and a notification that legitimately returns (a new day's tip) would
+    // arrive already read.
+    setReadIds(prev => {
+      const next = new Set(prev);
+      notifications.forEach(n => next.delete(n.id));
+      saveReadIds(next);
+      return next;
+    });
   }, [notifications]);
 
-  const enriched = notifications.map(n => ({
+  const enriched = visible.map(n => ({
     ...n,
     isRead: readIds.has(n.id),
     timeAgo: timeAgo(n.timestamp),

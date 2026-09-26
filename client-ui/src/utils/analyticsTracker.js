@@ -1,7 +1,14 @@
 /**
  * Analytics Tracker - Tracks user interactions and generates real metrics
  * Stores data in localStorage for persistence across sessions
+ *
+ * Practice attempts are additionally queued for server sync (see lib/syncQueue.js)
+ * so progress follows a student to another device. The local write below remains
+ * the source of truth for the current device and is never blocked on the network.
  */
+
+import { practiceAttemptId, practiceAttemptToRow } from '../lib/attemptMerge';
+import { enqueueSync } from '../lib/syncQueue';
 
 const STORAGE_KEY = 'edu_practice_analytics';
 
@@ -44,18 +51,52 @@ export const trackTopicView = (topicName, topicId) => {
   saveAnalyticsData(data);
 };
 
-// Track practice attempt
-export const trackPracticeAttempt = (topicName, score, duration) => {
+// Track practice attempt.
+// `meta` is optional and carries the syllabus coordinates of the attempt
+// ({ subject, topicId, chapterId, topicName }) so per-topic progress can be
+// derived later. Older call sites that only pass the display name still work —
+// the reader just resolves by name.
+//
+// The id is generated here, at record time, and is what makes the attempt
+// de-duplicate against its server row. Attempts recorded before ids existed get
+// a derived one (see practiceAttemptId) so they cannot be double-counted after
+// their first sync.
+export const trackPracticeAttempt = (topicName, score, duration, meta = {}, userId = null) => {
   const data = getAnalyticsData();
-  
-  data.practiceAttempts.push({
+
+  const attempt = {
     topicName,
     score, // Score as percentage
     duration, // Duration in minutes
     timestamp: new Date().toISOString(),
-  });
-  
+    ...(meta.subject ? { subject: meta.subject } : {}),
+    ...(meta.topicId ? { topicId: meta.topicId } : {}),
+    ...(meta.chapterId ? { chapterId: meta.chapterId } : {}),
+  };
+  attempt.id = practiceAttemptId(attempt);
+
+  data.practiceAttempts.push(attempt);
   saveAnalyticsData(data);
+
+  // Queued, not pushed: an inline push that fails while offline is an attempt
+  // that never reaches the server and is never retried.
+  if (userId) {
+    enqueueSync({ id: attempt.id, table: 'practice_attempts', row: practiceAttemptToRow(attempt, userId) });
+  }
+};
+
+// Practice attempts, newest first — the practice half of the input to
+// computeSyllabusProgress().
+//
+// Local records are given a stable id (or a derived one for records written
+// before ids existed) so that merging with the server copy de-duplicates
+// instead of double-counting.
+export const getPracticeAttempts = () => {
+  const data = getAnalyticsData();
+  if (!Array.isArray(data.practiceAttempts)) return [];
+  return data.practiceAttempts
+    .map(a => (a.id ? a : { ...a, id: practiceAttemptId(a) }))
+    .reverse();
 };
 
 // Track exam start
@@ -156,6 +197,7 @@ export const getRawAnalyticsData = () => {
 export default {
   trackTopicView,
   trackPracticeAttempt,
+  getPracticeAttempts,
   trackExamStart,
   trackExamCompletion,
   trackChatInteraction,

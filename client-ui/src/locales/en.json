@@ -2,8 +2,12 @@
   "nav": {
     "dashboard": "Dashboard",
     "practice": "Practice",
+    "syllabus": "Syllabus",
     "analytics": "Analytics",
     "mockExams": "Mock Exams"
+  },
+  "common": {
+    "close": "Close"
   },
   "sidebar": {
     "subjects": "Subjects",
@@ -48,6 +52,9 @@
     "trackProgress": "Track Progress",
     "monitorGrowth": "Monitor your growth across all topics in detail",
     "backToTopics": "Back to Topics",
+    "topics": "topics",
+    "selected": "Selected",
+    "itemsAvailable": "items available",
     "kinematics": "Kinematics",
     "projectileMotion": "Projectile Motion Scenario",
     "yourSolution": "Your Solution",
@@ -73,6 +80,35 @@
     "aLevel": "A-Level",
     "uace": "UACE",
     "selectLevel": "Select exam level"
+  },
+  "syllabus": {
+    "title": "Syllabus Outline",
+    "subtitle": "Every chapter, topic and subtopic in the UNEB / UACE Physics and Mathematics syllabus — with your exam and AI practice progress for each one.",
+    "searchPlaceholder": "Search a topic or subtopic…",
+    "noResults": "No matching topic found",
+    "syllabusOutline": "Syllabus outline",
+    "trackProgress": "Track progress",
+    "notStarted": "Not started",
+    "nextUp": "Recommended next",
+    "startTopic": "Start topic",
+    "needsAttention": "Needs attention",
+    "allOnTrack": "Nothing is lagging right now. Take a topic exam to keep it that way.",
+    "startToSeeProgress": "Attempt a topic to start tracking your progress here.",
+    "accuracy": "Accuracy",
+    "attempts": "Attempts",
+    "status": "Status",
+    "material": "Material",
+    "subtopics": "Subtopics",
+    "aiPractice": "AI practice",
+    "topicExam": "Topic exam",
+    "tryTopicExam": "Try topic exam",
+    "comingSoon": "Coming soon",
+    "contentSoon": "Questions and AI scenarios for this topic are still being prepared.",
+    "noMaterialTitle": "No material for this topic yet",
+    "noMaterialBody": "We are still writing questions and AI scenarios for this part of the syllabus. Check back soon.",
+    "practiceUnavailableTitle": "No practice question available",
+    "practiceUnavailableBody": "This topic has no AI scenario yet. Try another topic or browse the full syllabus.",
+    "coverageNote": "Only topics with published material can be practised"
   },
   "chat": {
     "maestro": "Maestro",

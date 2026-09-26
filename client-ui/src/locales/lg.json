@@ -2,8 +2,12 @@
   "nav": {
     "dashboard": "Dashboard",
     "practice": "Okukubaganya",
+    "syllabus": "Syllabus",
     "analytics": "Okukubaganya",
     "mockExams": "Mock Exams"
+  },
+  "common": {
+    "close": "Fumba"
   },
   "sidebar": {
     "subjects": "Omusomo",
@@ -48,6 +52,9 @@
     "trackProgress": "Kukoona Emirimu",
     "monitorGrowth": "Koona emirimu gy'ekigazi mu massimu gonna",
     "backToTopics": "Ddira mu Massimu",
+    "topics": "ebisingawo",
+    "selected": "Wamagirizidde",
+    "itemsAvailable": "ebikyo nga",
     "kinematics": "Kinematics",
     "projectileMotion": "Sentengo y'Projectile Motion",
     "yourSolution": "Okukubaganya kwo",
@@ -73,6 +80,35 @@
     "aLevel": "A-Level",
     "uace": "UACE",
     "selectLevel": "Londa mulimu gwa exam"
+  },
+  "syllabus": {
+    "title": "Ebbali lya Syllabus",
+    "subtitle": "Ekitundu kyonna, omusomo n'omufumba mu syllabus ya UNEB / UACE esu Physical Sciences, Mathematics — w'emufulo gwo ku buli kikozeseka.",
+    "searchPlaceholder": "Nooika omusomo owa subtopic…",
+    "noResults": "Tewali omusomo gumaze",
+    "syllabusOutline": "Ebbali lya syllabus",
+    "trackProgress": "Kulandika emirimu",
+    "notStarted": "Tewatandikidde",
+    "nextUp": "Ekijaako kikakozeseka",
+    "startTopic": "Tandika omusomo",
+    "needsAttention": "Kikikwata okulaba",
+    "allOnTrack": "Tewali kisomo kikikwata okulaba. Gukyala exam ya omusomo okusobola okukuumiza.",
+    "startToSeeProgress": "Kozooka omusomo okutandika okulaba emirimu yo hano.",
+    "accuracy": "Okugikuza",
+    "attempts": "Emizannyo",
+    "status": "Obudde",
+    "material": "Ebikozeseka",
+    "subtopics": "Ebisooka",
+    "aiPractice": "Okukubaganya n'AI",
+    "topicExam": "Exam ya omusomo",
+    "tryTopicExam": "Geza exam ya omusomo",
+    "comingSoon": "Najjo",
+    "contentSoon": "Ebubuzo n'emizannyo ya AI buli kigezo kikisibuka.",
+    "noMaterialTitle": "Tewali bikozeseka ku lusomo luno",
+    "noMaterialBody": "Tulandikira ebubuzo n'emizannyo ya AI ku kizibu kino. Ddayo bujjo.",
+    "practiceUnavailableTitle": "Tewali bubuza bw'okukubaganya",
+    "practiceUnavailableBody": "Lusomo luno tuliraba. Geza omusomo omulala oba laba syllabus yonna.",
+    "coverageNote": "Ebisingawo ebyasobola okubaganyizibwa nga bye biri ebikozeseka"
   },
   "chat": {
     "maestro": "Maestro",

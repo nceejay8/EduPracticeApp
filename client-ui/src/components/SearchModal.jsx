@@ -1,7 +1,10 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { Icon } from '@iconify/react';
 import { useNavigate } from 'react-router-dom';
-import { examLevels, physicsTopics, mathematicsTopics, ugandaContextScenarios } from '../data/examStructure';
+import { examLevels } from '../data/examStructure';
+import { SUBJECT_IDS, getSubject, listChapters } from '../data/syllabus';
+import { getTopicCoverage } from '../data/syllabusProgress';
+import { subjectIcon } from './ui';
 
 export default function SearchModal({ isOpen, onClose }) {
   const [query, setQuery] = useState('');
@@ -9,11 +12,12 @@ export default function SearchModal({ isOpen, onClose }) {
   const inputRef = useRef(null);
   const navigate = useNavigate();
 
-  // Build searchable items from exam structure data
+  // Searchable items are derived from the canonical syllabus, so a topic
+  // result can deep-link straight to that topic on /syllabus. Levels stay
+  // level-scoped to keep the old "jump into practice" shortcut working.
   const searchableItems = useMemo(() => {
     const items = [];
 
-    // Add exam levels as quick navigation
     Object.values(examLevels).forEach(level => {
       items.push({
         id: `level-${level.id}`,
@@ -21,60 +25,59 @@ export default function SearchModal({ isOpen, onClose }) {
         title: level.name,
         description: level.description,
         icon: 'solar:book-2-bold',
-        path: '/practice',
+        path: `/practice?level=${level.id === 'UACE' ? 'uace' : 'a-level'}`,
         color: level.color
       });
     });
 
-    // Add physics topics
-    Object.entries(physicsTopics).forEach(([level, topics]) => {
-      topics.forEach(topic => {
+    SUBJECT_IDS.forEach(subjectId => {
+      const subject = getSubject(subjectId);
+      listChapters(subjectId).forEach(chapter => {
+        // The chapter itself is a useful result: jump to the outline at that chapter.
         items.push({
-          id: topic.id,
-          type: 'Physics',
-          title: topic.name,
-          description: `${topic.subtopics.slice(0, 3).join(', ')} - ${topic.questions} questions`,
-          icon: 'solar:flash-bold',
-          path: '/practice',
-          color: 'from-blue-500 to-cyan-500',
-          level
+          id: chapter.id,
+          type: 'Chapter',
+          title: chapter.name,
+          description: `${subject.name} · ${chapter.topics.length} topics`,
+          icon: chapter.icon || 'solar:layers-linear',
+          path: `/syllabus?subject=${subjectId}`,
+          color: subject.color
+        });
+
+        chapter.topics.forEach(topic => {
+          const coverage = getTopicCoverage(subjectId, topic.id);
+          items.push({
+            id: topic.id,
+            type: 'Topic',
+            title: topic.name,
+            description: coverage.total > 0
+              ? `${chapter.name} · ${coverage.total} items available`
+              : `${chapter.name} · coming soon`,
+            icon: subjectIcon(subject.name),
+            path: `/syllabus?subject=${subjectId}&topic=${topic.id}`,
+            color: subject.color,
+            disabled: coverage.total === 0
+          });
+
+          topic.subtopics.forEach(subtopic => {
+            items.push({
+              id: subtopic.id,
+              type: 'Subtopic',
+              title: subtopic.name,
+              description: `${topic.name} · ${chapter.name}`,
+              icon: 'solar:circle-minimalistic-linear',
+              path: `/syllabus?subject=${subjectId}&topic=${topic.id}`,
+              color: subject.color
+            });
+          });
         });
       });
     });
 
-    // Add mathematics topics
-    Object.entries(mathematicsTopics).forEach(([level, topics]) => {
-      topics.forEach(topic => {
-        items.push({
-          id: topic.id,
-          type: 'Mathematics',
-          title: topic.name,
-          description: `${topic.subtopics.slice(0, 3).join(', ')} - ${topic.questions} questions`,
-          icon: 'solar:calculator-bold',
-          path: '/practice',
-          color: 'from-rose-500 to-pink-500',
-          level
-        });
-      });
-    });
-
-    // Add Uganda context scenarios
-    [...ugandaContextScenarios.physics, ...ugandaContextScenarios.mathematics].forEach(scenario => {
-      items.push({
-        id: scenario.id,
-        type: 'Scenario',
-        title: scenario.title,
-        description: `${scenario.topic} - ${scenario.examLevel}`,
-        icon: 'solar:document-text-bold',
-        path: '/practice',
-        color: 'from-amber-500 to-orange-500'
-      });
-    });
-
-    // Add navigation pages
     items.push(
       { id: 'nav-dashboard', type: 'Page', title: 'Dashboard', description: 'View your learning progress', icon: 'solar:home-2-bold', path: '/dashboard', color: 'from-slate-500 to-slate-600' },
       { id: 'nav-practice', type: 'Page', title: 'Practice', description: 'Practice questions by topic', icon: 'solar:book-bookmark-bold', path: '/practice', color: 'from-slate-500 to-slate-600' },
+      { id: 'nav-syllabus', type: 'Page', title: 'Syllabus Outline', description: 'Browse every chapter, topic and subtopic', icon: 'solar:layers-bold', path: '/syllabus', color: 'from-slate-500 to-slate-600' },
       { id: 'nav-analytics', type: 'Page', title: 'Analytics', description: 'Track your performance', icon: 'solar:chart-square-bold', path: '/analytics', color: 'from-slate-500 to-slate-600' },
       { id: 'nav-mock-exams', type: 'Page', title: 'Mock Exams', description: 'Take full practice exams', icon: 'solar:target-bold', path: '/mock-exams', color: 'from-slate-500 to-slate-600' },
       { id: 'nav-profile', type: 'Page', title: 'Profile', description: 'Manage your account', icon: 'solar:user-circle-bold', path: '/profile', color: 'from-slate-500 to-slate-600' }
@@ -97,7 +100,15 @@ export default function SearchModal({ isOpen, onClose }) {
         item.description.toLowerCase().includes(lowerQuery) ||
         item.type.toLowerCase().includes(lowerQuery)
       )
-      .slice(0, 8);
+      .sort((a, b) => {
+        // A title match outranks a description-only match, and ready content
+        // outranks a coming-soon topic.
+        const aTitle = a.title.toLowerCase().startsWith(lowerQuery) ? 0 : 1;
+        const bTitle = b.title.toLowerCase().startsWith(lowerQuery) ? 0 : 1;
+        if (aTitle !== bTitle) return aTitle - bTitle;
+        return (a.disabled ? 1 : 0) - (b.disabled ? 1 : 0);
+      })
+      .slice(0, 10);
   }, [query, searchableItems]);
 
   // Focus input when modal opens

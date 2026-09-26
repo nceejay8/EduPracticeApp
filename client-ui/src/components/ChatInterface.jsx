@@ -1,9 +1,10 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Icon } from '@iconify/react';
 import { HugeiconsIcon } from '@hugeicons/react';
-import { AiChat01Icon, AiBrain05Icon } from '@hugeicons/core-free-icons';
+import { AiLearningIcon } from '@hugeicons/core-free-icons';
 import MarkdownText from './MarkdownText';
 import { streamGemini, isAvailable } from '../services/geminiService';
+import { browserIsOnline } from '../hooks/useOnlineStatus';
 import { checkAndRecord, blockedMessage } from '../utils/rateLimiter';
 
 const INITIAL_MESSAGES = [
@@ -19,7 +20,7 @@ function Avatar({ role }) {
   if (role === 'assistant') {
     return (
       <div className="w-8 h-8 rounded-full bg-gradient-to-br from-[#f99c00] to-amber-600 flex items-center justify-center shrink-0">
-        <HugeiconsIcon icon={AiChat01Icon} size={16} strokeWidth={2} className="text-white" />
+        <HugeiconsIcon icon={AiLearningIcon} size={16} strokeWidth={2} className="text-white" />
       </div>
     );
   }
@@ -220,6 +221,23 @@ export default function ChatInterface({ isOpen, onClose, initialMessage, context
     const botId = Date.now() + 1;
     const timeStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
+    if (!browserIsOnline()) {
+      // Maestro is the one feature that genuinely cannot work without a network.
+      // Saying so is better than letting the request hang and then fail with a
+      // generic error, or pretending an answer is coming.
+      setIsSearchingModels(false);
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: botId,
+          role: 'assistant',
+          text: "You're offline, so I can't reach the AI service just yet. Your practice work is saved on this device — ask me again once you're back online.",
+          time: timeStr,
+        },
+      ]);
+      return;
+    }
+
     if (!isAvailable()) {
       // Graceful fallback when no API key
       await new Promise((r) => setTimeout(r, 800));
@@ -318,7 +336,7 @@ export default function ChatInterface({ isOpen, onClose, initialMessage, context
           <div className="flex items-center gap-3">
             <div className="relative">
               <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#f99c00] to-amber-600 flex items-center justify-center">
-                <HugeiconsIcon icon={AiBrain05Icon} size={22} strokeWidth={2} className="text-white" />
+                <HugeiconsIcon icon={AiLearningIcon} size={22} strokeWidth={2} className="text-white" />
               </div>
               <span className="absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full bg-emerald-500 border-2 border-[#0a0f1a]" />
             </div>

@@ -27,13 +27,18 @@ export default function NotificationsPanel({ isOpen, onClose }) {
   const earlierItems = notifications.filter(n => !n.today);
 
   return (
+    // Height is capped against the viewport rather than the parent, and the
+    // header is pinned while the list scrolls. The earlier version subtracted a
+    // hardcoded 52px to get the list height, which silently broke whenever the
+    // header grew. The cap also clears the fixed bottom nav on mobile — the
+    // previous `100dvh - 80px` ran the list underneath it.
     <div
       ref={panelRef}
-      className="absolute top-full right-0 mt-2 w-[360px] max-w-[calc(100vw-1rem)] bg-[#0f1219] border border-white/10 rounded-2xl shadow-2xl shadow-black/60 z-[200] overflow-hidden"
-      style={{ maxHeight: 'min(560px, calc(100dvh - 80px))' }}
+      className="absolute top-full right-0 mt-2 w-[360px] max-w-[calc(100vw-1rem)] bg-[#0f1219] border border-white/10 rounded-2xl shadow-2xl shadow-black/60 z-[200] flex flex-col overflow-hidden"
+      style={{ maxHeight: 'min(560px, calc(100dvh - 9rem))' }}
     >
       {/* Header */}
-      <div className="flex items-center justify-between px-4 py-3.5 border-b border-white/[0.07]">
+      <div className="flex items-center justify-between px-4 py-3.5 border-b border-white/[0.07] shrink-0">
         <div className="flex items-center gap-2.5">
           <h3 className="text-sm font-bold text-white">Notifications</h3>
           {unreadCount > 0 && (
@@ -63,7 +68,7 @@ export default function NotificationsPanel({ isOpen, onClose }) {
       </div>
 
       {/* List */}
-      <div className="overflow-y-auto" style={{ maxHeight: 'calc(min(560px, calc(100dvh - 80px)) - 52px)' }}>
+      <div className="overflow-y-auto flex-1 min-h-0 overscroll-contain">
         {notifications.length === 0 ? (
           <div className="py-12 text-center space-y-2">
             <Icon icon="solar:bell-off-bold" width="32" className="text-slate-700 mx-auto" />

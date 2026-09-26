@@ -7,6 +7,7 @@
     "dev": "vite",
     "build": "vite build",
     "lint": "eslint .",
+    "test": "node --import ./test/register.mjs ./test/syllabus.test.mjs && node --import ./test/register.mjs ./test/session.test.mjs && node --import ./test/register.mjs ./test/sync.test.mjs",
     "preview": "vite preview"
   },
   "dependencies": {

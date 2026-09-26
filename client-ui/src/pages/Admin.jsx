@@ -3,37 +3,27 @@ import { Link } from 'react-router-dom';
 import { Icon } from '@iconify/react';
 import { useRateLimit } from '../hooks/useRateLimit';
 import { PRACTICE_SCENARIOS, getCustomScenarios, saveCustomScenario, deleteCustomScenario, getCustomMockExams, saveCustomMockExam, deleteCustomMockExam } from '../data/practiceScenarios';
+import { SUBJECT_IDS, listTopics } from '../data/syllabus';
+import { invalidateCoverage } from '../data/syllabusProgress';
+import { Badge } from '../components/ui';
 
 const ADMIN_PIN_KEY  = 'eduPractice_adminVerified';
 const CORRECT_PIN    = 'EduAdmin24';
 
 const SUBJECTS   = ['physics', 'mathematics'];
 const LEVELS     = ['A-Level', 'UACE'];
-const TOPICS_MAP = {
-  physics:     ['Classical Mechanics', 'Optics', 'Modern Physics', 'Thermal Physics', 'Waves & Oscillations', 'Electricity & Magnetism', 'Nuclear Physics'],
-  mathematics: ['Pure Mathematics', 'Applied Mathematics', 'Statistics & Probability'],
-};
+
+// Derived from the canonical syllabus so a scenario created here always lands
+// on a real topic. Saving an ad-hoc topic string would produce content that
+// resolveContentRef() can never place on the outline, so it would silently
+// never show up on /syllabus.
+const TOPICS_MAP = Object.fromEntries(
+  SUBJECT_IDS.map(id => [id, listTopics(id).map(t => t.name)])
+);
 
 function useForceUpdate() {
   const [, set] = useState(0);
   return () => set(n => n + 1);
-}
-
-// ─── Pill badge ────────────────────────────────────────────────────────────
-function Badge({ children, color = 'slate' }) {
-  const map = {
-    blue:    'bg-blue-500/15 text-blue-300 border-blue-500/30',
-    rose:    'bg-rose-500/15 text-rose-300 border-rose-500/30',
-    amber:   'bg-amber-500/15 text-amber-300 border-amber-500/30',
-    violet:  'bg-violet-500/15 text-violet-300 border-violet-500/30',
-    slate:   'bg-white/5 text-slate-400 border-white/10',
-    emerald: 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30',
-  };
-  return (
-    <span className={`inline-flex items-center px-2 py-0.5 rounded-full border text-xs font-semibold ${map[color] || map.slate}`}>
-      {children}
-    </span>
-  );
 }
 
 // ─── Empty part row ────────────────────────────────────────────────────────
@@ -138,12 +128,12 @@ function ScenarioCard({ scenario, isCustom, onDelete }) {
         </div>
         <div className="flex-1 min-w-0">
           <div className="flex flex-wrap items-center gap-2 mb-1">
-            <Badge color={sub}>{scenario.subject}</Badge>
-            <Badge color="amber">{scenario.level}</Badge>
-            <Badge color={scenario.difficulty === 3 ? 'rose' : scenario.difficulty === 2 ? 'amber' : 'emerald'}>
+            <Badge tone={sub}>{scenario.subject}</Badge>
+            <Badge tone="amber">{scenario.level}</Badge>
+            <Badge tone={scenario.difficulty === 3 ? 'rose' : scenario.difficulty === 2 ? 'amber' : 'emerald'}>
               {scenario.difficulty === 1 ? 'Easy' : scenario.difficulty === 2 ? 'Medium' : 'Hard'}
             </Badge>
-            {isCustom && <Badge color="violet">Custom</Badge>}
+            {isCustom && <Badge tone="violet">Custom</Badge>}
           </div>
           <p className="text-sm font-semibold text-white truncate">{scenario.topic}</p>
           <p className="text-xs text-slate-500 mt-0.5 truncate">{scenario.stem?.slice(0, 80)}…</p>
@@ -246,6 +236,8 @@ function AddScenarioForm({ onSaved }) {
     if (form.parts.some(p => !p.text.trim())) return alert('All parts need question text.');
     const id = `custom-${form.subject}-${Date.now()}`;
     saveCustomScenario({ ...form, id, totalMarks, difficulty: parseInt(form.difficulty) });
+    // New content changes what /syllabus can offer, so drop the coverage memo.
+    invalidateCoverage();
     setSaved(true);
     setTimeout(() => { setSaved(false); onSaved(); }, 1200);
   };
@@ -552,7 +544,7 @@ function MockCard({ exam, isCustom, onDelete }) {
         {exam.description && <p className="text-xs text-slate-500 mt-0.5 truncate">{exam.description}</p>}
       </div>
       <div className="flex items-center gap-2 shrink-0">
-        {isCustom && <Badge color="violet">Custom</Badge>}
+        {isCustom && <Badge tone="violet">Custom</Badge>}
         {isCustom && (
           <button onClick={() => onDelete(exam.id)}
             className="w-8 h-8 rounded-lg bg-red-500/10 border border-red-500/20 text-red-400 hover:bg-red-500/20 flex items-center justify-center transition-colors">
@@ -799,7 +791,7 @@ export default function Admin() {
                   key={s.id}
                   scenario={s}
                   isCustom={getCustomScenarios().some(c => c.id === s.id)}
-                  onDelete={id => { deleteCustomScenario(id); refresh(); }}
+                  onDelete={id => { deleteCustomScenario(id); invalidateCoverage(); refresh(); }}
                 />
               ))}
               {allScenarios.length === 0 && (

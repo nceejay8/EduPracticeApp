@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { supabase } from '../lib/supabaseClient';
 import { computeAnalytics, listAttempts } from '../data/examBank';
+import { mergeExamAttempts } from '../lib/attemptMerge';
 
 function rowToAttempt(row) {
   return {
@@ -45,21 +46,30 @@ export default function useAnalyticsData({ days = null } = {}) {
   const channelRef = useRef(null);
 
   const refresh = useCallback(async () => {
-    if (supabase) {
-      setLoading(true);
-      const rows = await fetchAllFromSupabase();
-      if (rows !== null) {
-        setAllAttempts(rows);
-        setSource('supabase');
-      } else {
-        setAllAttempts(listAttempts());
-        setSource('local');
-      }
-      setLoading(false);
-    } else {
-      setAllAttempts(listAttempts());
+    // Local first, always available, and the only thing there is while offline.
+    const local = listAttempts();
+    if (!supabase) {
+      setAllAttempts(local);
       setSource('local');
+      return;
     }
+    setLoading(true);
+    const rows = await fetchAllFromSupabase();
+    if (rows === null) {
+      // Server unreachable. The local list is the whole truth for now.
+      setAllAttempts(local);
+      setSource('local');
+    } else {
+      // Merged, not replaced. An attempt completed offline is in the local list
+      // but not yet on the server, and replacing would hide it from every
+      // analytics view the moment the network came back.
+      setAllAttempts(mergeExamAttempts(rows, local));
+      // 'merged' means the server genuinely does not have everything yet, which
+      // is the state a student should be able to see rather than have hidden.
+      const serverIds = new Set(rows.map(r => r.id));
+      setSource(local.some(l => !serverIds.has(l.id)) ? 'merged' : 'supabase');
+    }
+    setLoading(false);
   }, []);
 
   useEffect(() => {

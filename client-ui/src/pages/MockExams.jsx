@@ -1,9 +1,11 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Icon } from '@iconify/react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useLocalization } from '../contexts/LocalizationContext';
 import { listAttempts, SUBJECTS, questionBank } from '../data/examBank';
-import { physicsTopics, mathematicsTopics } from '../data/examStructure';
+import { buildTopicExams } from '../data/topicExams';
+import { normalizeSubject, normalizeLevelId } from '../data/syllabus';
+import { EmptyState, Modal, Pill, subjectIcon } from '../components/ui';
 import { clearExamDraft, loadExamDraft } from '../services/examDraftService';
 
 // Map our level ids to the labels stored on questions/topics.
@@ -39,9 +41,16 @@ const TONE = {
 export default function MockExams() {
   const { t } = useLocalization();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const activeDraft = useMemo(() => loadExamDraft(), []);
 
-  const [selectedLevel, setSelectedLevel] = useState('A-Level');
+  // /mock-exams?level=uace&subject=physics&topic=phy-mech-energy
+  // Arriving from a topic on /syllabus. Seeded from the URL so the right level is
+  // already selected and the target paper can be confirmed straight away, rather
+  // than dumping the student on a list they then have to hunt through.
+  const [selectedLevel, setSelectedLevel] = useState(
+    () => normalizeLevelId(searchParams.get('level')) || 'A-Level'
+  );
   const [showAllMocks, setShowAllMocks] = useState(false);
   const [showCustomBuilder, setShowCustomBuilder] = useState(false);
   const [confirmExam, setConfirmExam] = useState(null);
@@ -58,8 +67,21 @@ export default function MockExams() {
     [selectedLevel]
   );
 
-  // Topic exams = generated from examStructure for the selected level
+  // Topic exams come from the coverage map, so this list and the syllabus page
+  // can never disagree about which topics have a paper.
   const topicExams = useMemo(() => buildTopicExams(selectedLevel), [selectedLevel]);
+
+  // The paper the student asked for, if they arrived with a topic in the URL.
+  const requestedTopic = useMemo(() => {
+    const subjectId = normalizeSubject(searchParams.get('subject'));
+    const topicId = searchParams.get('topic');
+    if (!subjectId || !topicId) return null;
+    return topicExams.find(e => e.subjectId === subjectId && e.topicId === topicId) || null;
+  }, [searchParams, topicExams]);
+
+  useEffect(() => {
+    if (requestedTopic) setConfirmExam(requestedTopic);
+  }, [requestedTopic]);
 
   // Recent attempts pulled from localStorage
   const recent = useMemo(() => listAttempts().slice(0, 5), []);
@@ -85,6 +107,7 @@ export default function MockExams() {
           count: exam.count,
           duration: exam.duration,
           topics: exam.topics || null,
+          topicId: exam.topicId || null,
           scenarioCount: exam.scenarioCount || 0,
         }
       }
@@ -285,9 +308,18 @@ export default function MockExams() {
 
             {/* Topic / Other exams */}
             <section>
-              <div className="mb-5">
-                <h2 className="text-xl sm:text-2xl font-bold text-white">Topic exams</h2>
-                <p className="text-sm text-slate-400 mt-1">Shorter, focused exams generated from each topic in the syllabus.</p>
+              <div className="mb-5 flex flex-wrap items-end justify-between gap-3">
+                <div>
+                  <h2 className="text-xl sm:text-2xl font-bold text-white">Topic exams</h2>
+                  <p className="text-sm text-slate-400 mt-1">Shorter, focused exams generated from each topic in the syllabus.</p>
+                </div>
+                <Link
+                  to="/syllabus"
+                  className="text-sm text-[#f99c00] hover:underline flex items-center gap-1.5"
+                >
+                  <Icon icon="solar:layers-linear" width="16" />
+                  Browse the full syllabus
+                </Link>
               </div>
 
               {topicExams.length === 0 ? (
@@ -307,7 +339,7 @@ export default function MockExams() {
                           <Icon icon={subjectIcon(exam.subject)} width="20" />
                         </div>
                         <div className="min-w-0 flex-1">
-                          <p className="text-[11px] uppercase tracking-wider text-slate-400">{exam.subject}</p>
+                          <p className="text-[11px] uppercase tracking-wider text-slate-400 truncate">{exam.chapterName}</p>
                           <h3 className="text-sm font-bold text-white truncate">{exam.topicName}</h3>
                         </div>
                       </div>
@@ -323,13 +355,22 @@ export default function MockExams() {
                           'bg-rose-500/15 text-rose-300'
                         }`}>{exam.difficulty}</span>
                       </div>
-                      <button
-                        onClick={() => startExam(exam)}
-                        className="mt-auto w-full px-4 py-2 border border-[#f99c00]/40 hover:bg-[#f99c00]/10 text-[#f99c00] rounded-lg font-semibold text-sm flex items-center justify-center gap-2"
-                      >
-                        <Icon icon="solar:play-circle-linear" width="16" />
-                        Start
-                      </button>
+                      <div className="flex items-center gap-2 mt-auto">
+                        <button
+                          onClick={() => startExam(exam)}
+                          className="flex-1 px-4 py-2 border border-[#f99c00]/40 hover:bg-[#f99c00]/10 text-[#f99c00] rounded-lg font-semibold text-sm flex items-center justify-center gap-2"
+                        >
+                          <Icon icon="solar:play-circle-linear" width="16" />
+                          Start
+                        </button>
+                        <Link
+                          to={`/syllabus?level=${encodeURIComponent(exam.level)}&subject=${exam.subjectId}&topic=${encodeURIComponent(exam.topicId)}`}
+                          title="Open in syllabus"
+                          className="px-2.5 py-2 border border-white/10 hover:border-white/25 text-slate-300 hover:text-white rounded-lg text-sm flex items-center justify-center"
+                        >
+                          <Icon icon="solar:layers-linear" width="16" />
+                        </Link>
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -457,85 +498,14 @@ export default function MockExams() {
 
 /* ----------------- helpers & small components ----------------- */
 
-function buildTopicExams(level) {
-  // Combine Physics + Maths topics from examStructure (only ones we have content for).
-  const levelKey = level === 'A-Level' || level === 'UACE' ? 'ALEVEL' : null;
-  if (!levelKey) return [];
-  const sources = [
-    { subject: 'Physics',     topics: physicsTopics[levelKey] || [] },
-    { subject: 'Mathematics', topics: mathematicsTopics[levelKey] || [] },
-  ];
-  const out = [];
-  sources.forEach(({ subject, topics }) => {
-    topics.forEach(topic => {
-      // Only surface topics where we have at least one matching question.
-      const matching = questionBank.filter(q =>
-        q.subject === subject && q.topic === topic.name && q.level === level
-      );
-      if (matching.length === 0) return;
-      const count = Math.min(matching.length, 6);
-      out.push({
-        id: `topic-${subject}-${topic.id}`,
-        title: `${topic.name} — Topic Exam`,
-        subject,
-        level,
-        topicName: topic.name,
-        topics: [topic.name],
-        subtopics: topic.subtopics,
-        difficulty: topic.difficulty?.includes('Advanced') ? 'Hard'
-                  : topic.difficulty?.includes('Beginner') ? 'Easy' : 'Medium',
-        count,
-        duration: `${Math.max(5, count * 2)}m`,
-        kind: 'topic',
-      });
-    });
-  });
-  return out;
-}
-
-function subjectIcon(subject) {
-  switch (subject) {
-    case 'Physics': return 'solar:atom-bold';
-    case 'Mathematics': return 'solar:calculator-bold';
-    default: return 'solar:book-2-bold';
-  }
-}
-
-function Pill({ icon, children }) {
-  return (
-    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-black/30 border border-white/5">
-      <Icon icon={icon} width="14" />
-      {children}
-    </span>
-  );
-}
-
-function EmptyState({ title, hint }) {
-  return (
-    <div className="text-center py-10 bg-white/5 rounded-xl border border-white/5">
-      <Icon icon="solar:document-text-linear" width="32" className="text-slate-500 mx-auto mb-2" />
-      <p className="text-sm font-semibold text-white">{title}</p>
-      <p className="text-xs text-slate-400 mt-1">{hint}</p>
-    </div>
-  );
-}
-
-function Modal({ title, onClose, children }) {
-  return (
-    <div className="fixed inset-0 bg-black/60 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
-      <div className="bg-[#111827] rounded-t-2xl sm:rounded-2xl w-full sm:max-w-md p-6 sm:p-7 max-h-[90vh] overflow-y-auto border border-white/10">
-        <div className="flex items-center justify-between mb-5">
-          <h2 className="text-xl font-bold text-white">{title}</h2>
-          <button onClick={onClose} className="text-slate-400 hover:text-white">
-            <Icon icon="solar:close-circle-linear" width="22" />
-          </button>
-        </div>
-        {children}
-      </div>
-    </div>
-  );
-}
-
+// Topic exams, generated from the canonical syllabus outline.
+//
+// Matching is alias-aware: the question bank tags itself with legacy free-text
+// topic strings ('Classical Mechanics', 'Gas Laws', 'Energy & Power') that do
+// not match the official outline names, so each question is resolved onto the
+// syllabus first and then matched. Both the regular bank and the Uganda-context
+// scenario bank are searched — the scenario questions are a meaningful part of
+// a topic paper and were previously being ignored here.
 function Field({ label, children }) {
   return (
     <div>

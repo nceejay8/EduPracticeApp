@@ -1,53 +1,205 @@
-# EduPractice Client UI
+# EduPractice — build notes
 
-## Overview
-A React + Vite + TypeScript single-page app for the EduPractice study platform. Auth is gated by a token cookie; unauthenticated users are redirected to `https://edupractice.vercel.app/login`.
+## The syllabus
 
-## Project Structure
-- `client-ui/` — React + Vite frontend (entry: `src/main.tsx`, app: `src/App.jsx`).
-- `server/` — Optional FastAPI RAG backend (uses Ollama + Chroma + HuggingFace). Not run in this Replit environment because it requires a local Ollama install and large ML model downloads. The frontend does not call this backend directly.
+`/syllabus` is the canonical outline for the app. One tree, defined once in
+`src/data/syllabus.js`, and everything else derives from it:
 
-## Replit Setup
-- Frontend workflow: `cd client-ui && npm run dev`, port 5000, webview output.
-- Vite is configured to bind `0.0.0.0:5000`, allow all hosts (for the iframe proxy), and use `wss` HMR on client port 443.
-- Node.js 20 module is used. The `@rolldown/plugin-babel` package warns about Node engine but works.
+| Subject | Chapters | Topics | Subtopics |
+| --- | --- | --- | --- |
+| Physics | 6 | 39 | 112 |
+| Mathematics | 8 | 41 | 107 |
 
-## Deployment
-- Configured as autoscale static deployment: build with `cd client-ui && npm run build`, serve `client-ui/dist`.
+Levels (`A-Level`, `UACE`) currently share one tree. A-Level and UACE questions
+are interchangeable (`LEVEL_EQUIVALENTS` in `examBank.js`), so the outline is
+keyed by level for future divergence but does not fork today.
 
-## State Management
-- `UserContext` (`src/contexts/UserContext.jsx`) holds the user profile (name, email, school, exam level, prefs) with localStorage persistence (key `eduPractice_user`). Mounted globally in `App.jsx` via `<UserProvider>`. Components consume it through `useUser()` (`user`, `updateUser`, `getFirstName`, `getInitials`).
-- `Profile.jsx` initializes its form from the context, syncs back via `updateUser(formData)` on save, and re-syncs from context if the user changes elsewhere while not editing.
-- `DashboardUI` welcome heading and `Layout` sidebar (avatar + name) all read live from `useUser()`, so any name edit on the Profile page propagates instantly across the app.
+### The content-attribution rule
 
-## Exam Engine (Physics & Mathematics only)
-- `src/data/examBank.js` holds two pools: `questionBank` (MCQ + numeric questions for Physics & Maths across A-Level / UACE) and `scenarioBank` (Uganda-context scenario questions — Murchison Falls power, Mt. Rwenzori pressure, Makerere admissions, Mbarara water tank, etc.). Exposes `buildExam({ subject, level, difficulty, count, scenarioCount })`, `scoreExam()`, `saveAttempt()/listAttempts()/getAttempt()`, `deriveAnalytics({ days })`, and `formatStudyTime()`.
-- A "scenario question" is just a regular MCQ/numeric question with a `context` paragraph attached. `buildExam` reserves N scenario slots per the `scenarioCount` parameter, then fills the rest from the regular bank.
-- `src/pages/ExamRunner.jsx` (route `/exam/run`) is the **focus-mode** session: distraction-free header with a "Focus mode" pill, countdown timer, progress strip, MCQ/numeric inputs, flag-for-review, overview grid, and draft auto-save. When a question carries `context`, an amber "Scenario" card with the context paragraph renders above the prompt.
-- `src/components/FocusAudio.jsx` is a self-contained lofi-beats player embedded in the runner header. Click the headphones pill to open a panel with 4 free streaming stations (Lofi Beats, Chill Study, Coffee Shop, Ambient Focus — all SomaFM streams), play/stop control, volume slider (persisted to localStorage key `eduPractice_focusAudio`), and graceful error handling. Audio is paused/torn down on unmount, so leaving or submitting the exam stops the music automatically. The pill in the header animates a soundwave when audio is playing.
-- `src/pages/ExamResults.jsx` (route `/exam/results/:attemptId`) shows score, per-topic accuracy bars, and per-question review with correct answers + explanations. Both exam routes are mounted outside the sidebar `Layout` (still inside `ProtectedRoute`) for full-screen focus.
-- `src/pages/MockExams.jsx` lists A-Level Physics + Mathematics mocks, each pre-configured with `scenarioCount: 2-3` so every mock mixes MCQs with Uganda-context scenarios. Also offers topic exams (auto-generated from `data/examStructure.js`) and a custom builder.
+Everything hangs off one function: `resolveContentRef(subject, topic, tags)` in
+`syllabus.js`. It decides which topic a question, scenario or past attempt
+belongs to.
 
-## Real-time Analytics
-- All metrics on the Dashboard, Analytics page, and the header streak chip are computed from the real `listAttempts()` history via `deriveAnalytics({ days })`. There is **no** placeholder data anywhere in the user-facing app.
-- `deriveAnalytics` returns `totalQuestions`, `totalCorrect`, `accuracyOverall`, `avgScore`, `studyMinutes`, `subjectPerformance` (Physics & Maths only, with mastery %, attempts, minutes), `weeklyActivity` (7 daily buckets of `{questions, correct, minutes}`), `streak` (consecutive days with ≥1 attempt, ending today or yesterday), `longestStreak`, `improvement` (avg of last 3 attempts vs first 3, in pp), and `latest`.
-- `Analytics.jsx` has a working period selector (7/30/90/All time) that re-derives the data, an empty-state banner when there are no attempts, and a recent-attempts list that links into the result viewer.
-- `DashboardUI.jsx` reads real values for the four stat cards, weekly activity bars (with tooltips), today's daily-goal progress (target 30 questions/day), recent sessions, and subject mastery (Physics + Maths). The "Resume Practice" modal is populated from real recent attempts.
-- `Layout.jsx` shows the live current streak in the top-right "fire" pill (recomputed on every route change).
+- A **specific** match (subtopic/topic) always beats a broad one (chapter). A
+  scenario tagged `['Modern Physics', 'Quantum Mechanics']` credits Quantum
+  Mechanics; it is not served for the sibling topics in Modern Physics.
+- A chapter-wide scenario is credited to every topic in that chapter, because it
+  is genuinely servable for any of them.
+- A chapter-wide *exam* question is **not** credited to every topic. That would
+  offer a "topic exam" per topic built from the same handful of questions and
+  report a question count the paper cannot deliver.
+- A tag that cannot be placed returns `null` and is reported as unattributed. It
+  is not filed under the subject, which would inflate subject accuracy with work
+  we cannot actually place.
+- A subject hint always wins, so `Statics` resolves to
+  `phy-mech-equilibrium` under Physics and `mat-mech-statics` under Mathematics.
 
-## Recent UI Changes
-- Practice page redesigned with examdojo-inspired clean look: bigger headlines, generous spacing, single-column → multi-column responsive grids, pill-shaped CTAs, consistent rounded card system, mobile-friendly workboard with sticky-safe bottom padding.
-- Workboard reserves right-side room for the chat sidebar only when chat is open (`lg:pr-[400px]` conditionally) instead of an invalid hard-coded class.
-- Chatbot icon switched from `solar:magic-stick-3-bold` to Hugeicons `AiBrain05Icon` (free tier) in `ChatInterface.jsx` (avatar + header) and `Practice.jsx` (floating chat button + "Ask Maestro" CTA). Uses `@hugeicons/react` + `@hugeicons/core-free-icons`.
+The rule lives in `syllabus.js` rather than `syllabusProgress.js` because the
+practice scenario picker needs it too, and the progress engine already imports
+the scenario bank — putting it there would be an import cycle.
 
-## Bug Fixes & UX Improvements (Comprehensive Audit Pass)
-- **Rate limiting system**: `src/utils/rateLimiter.js` (sliding-window, localStorage) + `src/hooks/useRateLimit.js` hook. Applied to Login (5/15min), Signup (3/hr), Admin PinGate (5/30min), ChatInterface (12/5min), AudioOverview (4/10min).
-- **Layout.jsx**: Settings gear button now navigates to `/profile`. Broken mobile `<a href="#">` replaced with a functional search icon button (opens SearchModal). Admin Panel link added to mobile slide-in sidebar. `refreshNotifs` added to `useEffect` dependency array.
-- **DashboardUI.jsx**: Broken CSS checkbox hack toggle replaced with proper controlled `RemindersToggle` component using React state + localStorage persistence (`eduPractice_reminders`).
-- **Practice.jsx workboard**: Dead Notes/Save/Flag toolbar buttons replaced with `WorkboardNotesButton` — a functional Save (bookmark) and Flag pair, both persisted to localStorage per-scenario.
-- **Admin.jsx PinGate**: Fixed stale state bug — after `pinRL.record()`, accurate remaining count computed as `pinRL.remaining - 1` instead of reading the not-yet-updated hook state.
-- **ExamRunner.jsx**: Replaced `window.confirm()` abandon dialog with a proper custom modal (matching the existing submit modal design pattern) — `showAbandonModal` state + amber-themed "Leave exam" / "Keep going" buttons.
-- **Profile.jsx**: Added a visible Cancel + Save button pair in the page header when `isEditing === true`. Cancel resets form to current user state without saving.
-- **NotFoundPage.jsx**: Removed inline `<link>` Google Fonts tag from JSX body (invalid in React). Fixed invalid Tailwind v4 class `bg-linear-to-r` → `bg-gradient-to-r`.
-- **index.html**: Added Google Fonts preconnect + stylesheet link for DM Sans and Space Mono (used by NotFoundPage).
-- **MockExams.jsx**: Replaced `window.location.reload()` in the Discard Draft button with a proper state reset.
+## Coverage is honest
+
+`src/data/syllabusProgress.js` measures what material exists behind each topic,
+split into three pools because three different code paths serve them:
+
+| Pool | Source | Serves |
+| --- | --- | --- |
+| `exam` | `questionBank` | the MCQ/numeric slots in a paper |
+| `scenario` | `scenarioBank` | Uganda-context questions, only reachable via reserved scenario slots |
+| `practice` | `PRACTICE_SCENARIOS` + admin scenarios | the AI workboard |
+
+`examTotal = exam + scenario` is what a topic exam can draw on, and `total` adds
+practice. The annotated topic carries `practiceAvailable` and `examAvailable` so
+the outline can answer "is there something to practise?" and "is there a paper to
+sit?" separately — a topic can honestly be yes to one and no to the other.
+
+A topic with no material stays visible and reads "Coming soon", with its actions
+disabled. Showing the whole syllabus matters: a student can see what they have
+not covered yet, not just what happens to be built.
+
+`buildTopicExams` (`src/data/topicExams.js`) reads these same numbers rather
+than re-matching the banks, so the syllabus page and the Mock Exams page cannot
+disagree about which topics have a paper. `test/syllabus.test.mjs` asserts that
+agreement, including that every offered paper assembles to the length it
+advertises.
+
+## Progress
+
+Exam attempts come from Supabase *and* the local cache, via
+`useAnalyticsData` → `data.attempts`. AI practice attempts are localStorage only
+(`getPracticeAttempts()` in `utils/analyticsTracker.js`).
+
+Both are folded into the same outline. An exam breakdown item contributes its
+marks; a practice attempt counts as one mark worth its score, so a single AI
+question is comparable to one exam question regardless of paper weighting.
+
+| Accuracy | Status |
+| --- | --- |
+| ≥ 80% | `mastered` |
+| ≥ 50% | `developing` |
+| < 50% | `learning` |
+| no attempts | `not-started` |
+
+Accuracy is `0` for an untouched syllabus, so the UI guards on `stats.total`
+rather than on the accuracy value. Rendering a confident "0%" for work nobody has
+done would be a lie.
+
+Coverage is memoised per subject; call `invalidateCoverage()` after adding or
+editing scenarios in `/admin`.
+
+## Deep links
+
+Every syllabus view is a URL: `?level=&subject=&topic=`.
+
+Level ids are parsed by `normalizeLevelId`, which accepts both the id (`uace`)
+and the raw label (`UACE`). Links into `/syllabus` come from several pages
+written at different times, and some carry the label — parsing only one form
+meant clicking back from a UACE topic exam landed on the A-Level outline for no
+visible reason. Use `levelToLevelId` when building query strings.
+
+`/mock-exams?level=&subject=&topic=` opens with that paper ready to confirm.
+
+## Sessions last a week
+
+A signed-in session lasts 7 days from sign-in, then the student is signed out and
+asked to sign in again. Absolute window, not an idle timeout: activity does not
+extend it. Policy lives in `client-ui/src/lib/sessionPolicy.js`, wired up in
+`AuthContext`, with a sign-out button and a "days left" chip in both sidebars.
+
+Points worth knowing before changing it:
+
+- **The start instant is in `localStorage`**, not Supabase. sessionStorage would
+  end the session whenever the tab closed, which is the opposite of the feature.
+- **It is a cap, not the source of truth.** Supabase's session and refresh-token
+  settings live in the dashboard, not in this repo. Client code can only shorten
+  a session, never lengthen it — if the dashboard expires sessions sooner, so do
+  we, and no code change here can prevent that.
+- **Pre-existing sessions are adopted**, not killed. A session with no marker gets
+  a full window on first load, so nobody is logged out by a policy that did not
+  exist when their session started.
+- **An expired session is ended before any protected route renders**, so it is
+  never briefly usable.
+- **Timers are not trusted alone.** Background tabs and sleeping laptops throttle
+  `setTimeout`, so the deadline is re-checked on `focus` and `visibilitychange`.
+- **Why the session ended is recorded**, and the login page reads it once. Without
+  that, a student returning after a week is dropped on a bare login form and has
+  no idea whether they were hacked, bugged, or simply expected to sign in again.
+
+`test/session.test.mjs` covers the edges: the exact boundary, reload survival, a
+backwards clock, blocked storage, non-numeric markers, and the read-once
+sign-out reason. If you change this policy, run it.
+
+## Offline and syncing
+
+Everything a student does is written to `localStorage` first and synchronously.
+Nothing important waits on a network request, so practice, exams and the syllabus
+all work with no connection at all. The network is only used to *copy* work to
+other devices.
+
+Two mechanisms, and the distinction matters:
+
+- **The outbox** (`lib/syncQueue.js`) is the record of writes that still owe the
+  server a copy. A write is enqueued, not pushed inline. An inline push that
+  fails while offline is a write that never happens and is never retried — which
+  is exactly how attempts used to go missing. `useSyncEngine` drains the queue on
+  mount, on `online`, on `focus`, and once a minute as a backstop.
+- **The merge** (`lib/attemptMerge.js`) is what keeps the UI honest *while* a sync
+  is still pending. The read path used to replace the local list with the server
+  list, so an attempt completed offline stayed on disk but vanished from every
+  analytics view the moment the network returned. Local and server lists are now
+  unioned and de-duplicated by attempt id.
+
+Attempt ids are generated at record time and are the idempotency key for both.
+That is what makes a retry safe: the same attempt can be queued, retried and
+merged any number of times without ever producing a second row. Attempts recorded
+before ids existed derive one from their own contents, so they cannot be
+double-counted after their first sync.
+
+On a conflict the server row wins, but the two are *merged* rather than swapped,
+so local-only fields survive — a practice attempt's `subject`/`topicId` exist
+only locally, and dropping them would move it out of per-topic progress.
+
+### Session behaviour offline
+
+A token refresh that cannot reach the server ends the session locally even though
+it is still valid. Signing the student out there throws away a working session
+because they were on a train, so `AuthContext` holds the session open and sets
+`isOffline` instead. That is a deferral, not a bypass: on reconnect the app asks
+the server whether the session is genuinely still good, and signs the student out
+then if it is not.
+
+`OfflineBanner` states the two things that matter — the work is safe, and only
+some features are unavailable. It is deliberately not a blocking modal:
+interrupting a student mid-question to say something that does not affect the task
+in front of them is worse than saying nothing. Maestro chat is the one feature
+that genuinely needs a network, and it says so rather than hanging.
+
+### What still does not work offline
+
+There is **no service worker**, so a cold load with no network fails — only an
+already-open tab survives. That is the remaining gap, and it needs a build-step
+change (a hand-written service worker risks serving stale assets).
+
+### Database
+
+`supabase/migrations/20260926_practice_attempts.sql` must be run once for
+cross-device practice progress. Until then practice attempts still work on the
+device that made them, and the queue retries in the background. The migration
+enables RLS and adds append-only policies — without them the table is readable by
+anyone, so do not skip that part.
+
+## Commands
+
+```bash
+npm run dev     # dev server
+npm run build   # production build
+npm run lint    # eslint (configured for .ts/.tsx; .jsx is not covered)
+npm test        # syllabus + session policy + offline sync
+```
+
+The test runs on plain Node — `test/register.mjs` bridges the two gaps between
+Vite and Node (extensionless imports, `import.meta.env`). No test framework.
+`test/sync.test.mjs` covers the merge rules and the outbox: an offline attempt
+staying visible, syncing exactly once, a failing row not blocking the rows behind
+it, and a corrupt queue being filtered rather than flushed.

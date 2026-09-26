@@ -3,22 +3,39 @@ import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { Icon } from '@iconify/react';
 import { useLocalization } from '../contexts/LocalizationContext';
 import { useUser } from '../contexts/UserContext';
+import { useAuth } from '../contexts/AuthContext';
 import Avatar from '../components/Avatar';
 import SearchModal from '../components/SearchModal';
 import NotificationsPanel from '../components/NotificationsPanel';
+import OfflineBanner from '../components/OfflineBanner';
+import useSyncEngine from '../hooks/useSyncEngine';
 import { useNotifications } from '../contexts/NotificationsContext';
 import { deriveAnalytics } from '../data/examBank';
+import { describeRemaining } from '../lib/sessionPolicy';
 
 export default function Layout() {
   const location = useLocation();
   const navigate = useNavigate();
   const { t } = useLocalization();
   const { user } = useUser();
+  const { logOut, sessionDeadline, sessionDays, user: authUser } = useAuth();
+  // Drains the durable queue of writes taken while offline. Mounted here so it
+  // runs for the whole authenticated app rather than per page.
+  const { pending: pendingSyncCount } = useSyncEngine(authUser?.id);
   const { unreadCount, markAllRead, refresh: refreshNotifs } = useNotifications();
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [isNotifOpen, setIsNotifOpen] = useState(false);
+  const [isSigningOut, setIsSigningOut] = useState(false);
   const bellRef = useRef(null);
+
+  // The session window is a week, so students need to be able to end it early
+  // on a shared or public machine. logOut had no call site at all before this.
+  const handleSignOut = async () => {
+    setIsSigningOut(true);
+    await logOut();
+    navigate('/login', { replace: true });
+  };
 
   // Live streak from real exam attempts. Recompute on every route change so
   // returning from an exam shows the new streak immediately.
@@ -77,6 +94,7 @@ export default function Layout() {
   const navItems = [
     { name: t('nav.dashboard'), path: '/dashboard', icon: 'solar:home-2-linear' },
     { name: t('nav.practice'), path: '/practice', icon: 'solar:book-bookmark-linear' },
+    { name: t('nav.syllabus'), path: '/syllabus', icon: 'solar:layers-linear' },
     { name: t('nav.analytics'), path: '/analytics', icon: 'solar:chart-square-linear' },
     { name: t('nav.mockExams'), path: '/mock-exams', icon: 'solar:target-linear' },
   ];
@@ -102,7 +120,7 @@ export default function Layout() {
             const isActive = location.pathname === item.path;
             return (
               <Link
-                key={item.name}
+                key={item.path}
                 to={item.path}
                 className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-all group font-medium ${
  isActive
@@ -144,6 +162,7 @@ export default function Layout() {
             </div>
             <Icon icon="solar:alt-arrow-right-linear" width="20" height="20" className="text-slate-500 group-hover:text-[#f99c00] transition-colors" style={{ strokeWidth: 1 }} />
           </Link>
+          <SessionFooter onSignOut={handleSignOut} isSigningOut={isSigningOut} sessionDeadline={sessionDeadline} sessionDays={sessionDays} />
         </div>
       </aside>
 
@@ -153,7 +172,14 @@ export default function Layout() {
         <div className="absolute top-0 right-1/4 w-[600px] h-[600px] bg-[#f99c00]/3 rounded-full blur-[150px] pointer-events-none z-0 opacity-40"></div>
 
         {/* Top Header */}
-        <header className="h-16 md:h-20 px-4 md:px-8 flex items-center justify-between border-b border-white/5 bg-gradient-to-r from-[#0B1120] to-[#0D0F1B] backdrop-blur-lg z-10 shrink-0">
+        {/* z-30, above the content column's z-10: the notification panel is
+            absolutely positioned inside this header, and `backdrop-blur-lg`
+            makes the header its own stacking context. The panel's own z-[200]
+            can only compete inside that context, so if the header is not above
+            the content column the panel renders *behind* the page. Equal z-index
+            would not do it either — the content column comes later in the DOM
+            and would win the tie. */}
+        <header className="h-16 md:h-20 px-4 md:px-8 flex items-center justify-between border-b border-white/5 bg-gradient-to-r from-[#0B1120] to-[#0D0F1B] backdrop-blur-lg z-30 shrink-0">
           <div className="flex items-center gap-3 md:hidden">
             <button
               onClick={() => setIsMobileSidebarOpen(!isMobileSidebarOpen)}
@@ -225,6 +251,7 @@ export default function Layout() {
           ref={scrollContainerRef}
           className="flex-1 overflow-y-auto overflow-x-hidden z-10 flex flex-col relative"
         >
+          <OfflineBanner pendingSyncCount={pendingSyncCount} />
           <Outlet />
 
           {/* Spacer keeps content clear of the fixed bottom nav on mobile */}
@@ -260,7 +287,7 @@ export default function Layout() {
             const isActive = location.pathname === item.path;
             return (
               <Link
-                key={item.name}
+                key={item.path}
                 to={item.path}
                 onClick={() => setIsMobileSidebarOpen(false)}
                 className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-all group font-medium ${
@@ -302,6 +329,7 @@ export default function Layout() {
             </div>
             <Icon icon="solar:alt-arrow-right-linear" width="20" height="20" className="text-slate-500 group-hover:text-[#f99c00] transition-colors" style={{ strokeWidth: 1 }} />
           </Link>
+          <SessionFooter onSignOut={handleSignOut} isSigningOut={isSigningOut} sessionDeadline={sessionDeadline} sessionDays={sessionDays} />
         </div>
       </aside>
 
@@ -317,9 +345,9 @@ export default function Layout() {
           const isActive = location.pathname === item.path;
           return (
             <Link
-              key={item.name}
+              key={item.path}
               to={item.path}
-              className={`flex items-center justify-center w-16 h-full transition-all ${
+              className={`flex items-center justify-center flex-1 min-w-0 h-full transition-all ${
  isActive ? 'text-[#f99c00]' : 'text-slate-500 hover:text-white'
  }`}
               aria-label={item.name}
@@ -330,7 +358,7 @@ export default function Layout() {
         })}
         <Link
           to="/profile"
-          className={`flex items-center justify-center w-16 h-full transition-all ${
+          className={`flex items-center justify-center flex-1 min-w-0 h-full transition-all ${
  location.pathname === '/profile' ? 'text-[#f99c00]' : 'text-slate-500 hover:text-white'
  }`}
           aria-label="Profile"
@@ -341,6 +369,39 @@ export default function Layout() {
 
       {/* Search Modal */}
       <SearchModal isOpen={isSearchOpen} onClose={() => setIsSearchOpen(false)} />
+    </div>
+  );
+}
+
+// Sign-out plus a note of how long the session has left. Rendered in both
+// sidebars; the component exists once because the wording and the week-long
+// policy should not drift between desktop and mobile.
+function SessionFooter({ onSignOut, isSigningOut, sessionDeadline, sessionDays }) {
+  // Derived from the deadline on every render rather than stored as a countdown,
+  // so the chip cannot go stale while the student is reading it.
+  const remaining = sessionDeadline ? describeRemaining(sessionDeadline - Date.now()) : null;
+  return (
+    <div className="mt-2 px-3 pt-3 border-t border-white/5">
+      {remaining && (
+        <p className="mb-2 text-[11px] text-slate-500 leading-snug">
+          <Icon icon="solar:clock-circle-linear" width="12" height="12" className="inline mr-1 -mt-0.5" style={{ strokeWidth: 1.5 }} />
+          {remaining} · {sessionDays}-day session
+        </p>
+      )}
+      <button
+        type="button"
+        onClick={onSignOut}
+        disabled={isSigningOut}
+        className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium text-slate-400 hover:text-white hover:bg-white/5 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+      >
+        <Icon
+          icon={isSigningOut ? 'solar:restart-linear' : 'solar:logout-square-linear'}
+          width="16" height="16"
+          style={{ strokeWidth: 1.5 }}
+          className={isSigningOut ? 'animate-spin' : ''}
+        />
+        {isSigningOut ? 'Signing out…' : 'Sign out'}
+      </button>
     </div>
   );
 }
