@@ -114,7 +114,7 @@ export default function Layout() {
         {/* Logo */}
         <div className="h-20 px-6 flex items-center border-b border-white/5">
           <Link to="/" className="flex items-center gap-3 group">
-            <div className="w-10 h-10 rounded-lg  bg-white flex items-center justify-center text-white transition-all group-hover:scale-110">
+            <div className="w-10 h-10 rounded-lg  bg-white flex items-center justify-center text-[#0B1120] transition-all group-hover:scale-110">
               <Icon icon="lucide:graduation-cap" width="24" height="24" />
             </div>
             <span className="text-xl font-bold tracking-tight text-white">EduPractice</span>
