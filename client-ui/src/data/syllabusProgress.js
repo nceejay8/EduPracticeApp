@@ -31,6 +31,7 @@ import {
 } from './syllabus';
 import { questionBank, scenarioBank } from './examBank';
 import { PRACTICE_SCENARIOS, getCustomScenarios } from './practiceScenarios';
+import { getPublishedScenarios } from './publishedScenarios';
 
 // Accuracy bands. The 80/50 split matches the thresholds already used for
 // per-topic bars in ExamResults.jsx so the two views read identically.
@@ -180,7 +181,7 @@ function buildCoverage(subjectId) {
     bump(ref ? { ...ref, raw: q.topic } : { level: 'unknown', raw: q.topic }, 'scenario');
   });
 
-  [...PRACTICE_SCENARIOS, ...getCustomScenarios()].forEach(s => {
+  [...PRACTICE_SCENARIOS, ...getCustomScenarios(), ...getPublishedScenarios()].forEach(s => {
     const subject = normalizeSubject(s.subject);
     if (subject !== subjectId) return;
     const ref = resolveContentRef(subject, s.topic, s.topics);

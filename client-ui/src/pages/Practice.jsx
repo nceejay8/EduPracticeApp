@@ -12,6 +12,7 @@ import ChatInterface from '../components/ChatInterface';
 import { trackPracticeAttempt, trackTopicView } from '../utils/analyticsTracker';
 import { useAuth } from '../contexts/AuthContext';
 import { evaluatePracticeSolution } from '../services/practiceAiService';
+import { usePublishedScenarios } from '../hooks/usePublishedScenarios';
 
 const PRACTICE_DRAFT_KEY = 'eduPractice_practiceDraft';
 
@@ -156,24 +157,40 @@ export default function Practice() {
     [selectedSubject]
   );
 
+  // `poolReady` gates both memos below.
+  //
+  // They are keyed on the topic alone, which is what keeps a question from being
+  // swapped out from under a student mid-answer. But that same stability means
+  // they would never re-run to notice questions that arrived from the generator
+  // after this component mounted — a topic whose only material is generated would
+  // render nothing and stay nothing.
+  //
+  // Gating on `ready` resolves both: nothing is picked until the pool has
+  // settled, and once it has, `ready` never goes back to false, so a question
+  // already on screen cannot be replaced.
+  const { ready: poolReady } = usePublishedScenarios();
+
   // Get the practice scenario for the selected syllabus topic.
   // Topic-scoped rather than subject-scoped, so drilling into a topic actually
   // serves a question from that topic.
   const currentScenario = useMemo(() => {
-    if (!selectedTopicRef) return null;
+    if (!selectedTopicRef || !poolReady) return null;
     try {
       return pickScenarioForSyllabusTopic(selectedTopicRef.subjectId, selectedTopicRef.topicId);
     } catch (err) {
       console.error('Failed to load scenario:', err);
       return null;
     }
-  }, [selectedTopicRef]);
+  }, [selectedTopicRef, poolReady]);
 
   // True when the topic exists in the syllabus but has no material behind it yet.
+  // Also gated, for the same reason: asking the coverage map before the pool has
+  // loaded would report a thin topic as empty and say "Coming soon" for a topic
+  // that has five generated questions waiting.
   const topicHasNoMaterial = useMemo(() => {
-    if (!selectedTopicRef) return false;
+    if (!selectedTopicRef || !poolReady) return false;
     return getTopicCoverage(selectedTopicRef.subjectId, selectedTopicRef.topicId).total === 0;
-  }, [selectedTopicRef]);
+  }, [selectedTopicRef, poolReady]);
 
   useEffect(() => {
     savePracticeDraft({

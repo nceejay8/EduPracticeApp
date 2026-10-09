@@ -3,6 +3,7 @@
 // Each scenario = one full exam question with mark scheme.
 
 import { normalizeSubject, resolveContentRef, getTopic } from './syllabus';
+import { getPublishedScenarios } from './publishedScenarios';
 
 // ─── LocalStorage helpers ──────────────────────────────────────────────────
 const CUSTOM_KEY       = 'eduPractice_customScenarios';
@@ -37,10 +38,20 @@ export function deleteCustomMockExam(id) {
 }
 
 // ─── Seeded daily picker ───────────────────────────────────────────────────
+// Every scenario available to a student: the 19 hand-authored ones, anything
+// created in /admin on this device, and anything the daily generator has published.
+//
+// Published questions are last so that a scenario id can never collide with a
+// built-in and quietly shadow it; the generator namespaces its ids, and this
+// ordering means the hand-written content wins if that ever breaks.
+function allScenarios() {
+  return [...PRACTICE_SCENARIOS, ...getCustomScenarios(), ...getPublishedScenarios()];
+}
+
 // Picks a deterministic scenario per (topic, day) so the question changes
 // daily but stays stable within a single session.
 export function pickScenarioForTopic(subject, topicName) {
-  const all     = [...PRACTICE_SCENARIOS, ...getCustomScenarios()];
+  const all     = allScenarios();
   const matches = all.filter(s =>
     s.subject === subject &&
     (s.topic === topicName || (s.topics && s.topics.includes(topicName)))
@@ -68,7 +79,7 @@ function scenariosForCanonicalTopic(subjectId, topicId) {
   const found = getTopic(subjectId, topicId);
   if (!subject || !found) return [];
 
-  const all = [...PRACTICE_SCENARIOS, ...getCustomScenarios()]
+  const all = allScenarios()
     .filter(s => normalizeSubject(s.subject) === subject);
 
   // 1. Scenarios that resolve to this exact topic (or one of its subtopics).

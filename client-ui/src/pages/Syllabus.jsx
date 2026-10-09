@@ -26,6 +26,7 @@ import {
   STATUS_META,
 } from '../data/syllabusProgress';
 import usePracticeAttempts from '../hooks/usePracticeAttempts';
+import { usePublishedScenarios } from '../hooks/usePublishedScenarios';
 import { Badge, EmptyState, ProgressBar, subjectIcon } from '../components/ui';
 
 const LEVEL_IDS = { 'a-level': 'A-Level', uace: 'UACE' };
@@ -43,9 +44,18 @@ export default function Syllabus() {
   // work done on any of the student's devices rather than only this one.
   const attempts = useMemo(() => analytics?.attempts || [], [analytics]);
   const { attempts: practiceAttempts } = usePracticeAttempts();
+
+  // Every coverage number on this page comes from the memoised coverage map, so
+  // the map has to be rebuilt once the generated questions land. The hook clears
+  // the memo and re-renders this component; `poolReady` in the dependency list is
+  // what makes the useMemo below actually re-run. Without it the page would keep
+  // showing pre-generation counts — topics reading "Coming soon" that have
+  // questions waiting.
+  const { ready: poolReady } = usePublishedScenarios();
+
   const progress = useMemo(
     () => computeSyllabusProgress({ attempts, practiceAttempts }),
-    [attempts, practiceAttempts]
+    [attempts, practiceAttempts, poolReady]
   );
 
   // ── State, seeded from the URL so every view is shareable ────────────────

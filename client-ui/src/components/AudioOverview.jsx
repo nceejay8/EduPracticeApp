@@ -175,7 +175,7 @@ export default function AudioOverview({ topic, subject, level, description, onCl
                 </div>
                 {!isAvailable() && (
                   <p className="text-xs text-amber-400 bg-amber-500/10 border border-amber-500/20 rounded-lg px-3 py-2">
-                    Add VITE_OPENROUTER_API_KEY to enable this feature.
+                    This feature needs the app to be connected to the server, and it is not right now.
                   </p>
                 )}
                 <button

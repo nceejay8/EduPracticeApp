@@ -1,0 +1,61 @@
+# Daily practice-question generation.
+#
+# Runs the generator in client-ui/scripts, which asks Gemini (through the
+# ai-proxy Edge Function, so this workflow never sees the AI key) for up to 50
+# new UACE questions and stages them as `pending` in practice_questions. An
+# admin then approves them in /admin's Review Queue — nothing here publishes
+# anything to students.
+#
+# Required repository secrets (Settings → Secrets and variables → Actions):
+#   SUPABASE_URL             https://<project>.supabase.co
+#   SUPABASE_ANON_KEY        public by design; authenticates the Edge Function call
+#   SUPABASE_SERVICE_ROLE_KEY  upserts past RLS — CI only, never in client code
+#   GENERATOR_SECRET         shared with the Edge Function (see supabase/functions)
+#
+# GitHub disables scheduled workflows after ~60 days without repository
+# activity; re-enable from the Actions tab if generation goes quiet.
+
+name: Generate practice questions
+
+on:
+  schedule:
+    # 04:45 UTC — off the top of the hour, when GitHub's scheduled runners are
+    # most congested and runs are most likely to be delayed or skipped.
+    - cron: '45 4 * * *'
+  # Manual runs for backfills and testing; uses the same path as the cron so a
+  # hand-run cannot behave differently from the scheduled one.
+  workflow_dispatch:
+    inputs:
+      limit:
+        description: 'Questions to generate (1-50)'
+        required: false
+        default: '50'
+
+# Never two generation runs at once: they would race for the same daily ids.
+concurrency:
+  group: generate-questions
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  generate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Generate questions
+        working-directory: client-ui
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          GENERATOR_SECRET: ${{ secrets.GENERATOR_SECRET }}
+          GENERATE_LIMIT: ${{ github.event.inputs.limit || '50' }}
+        run: node scripts/generate-questions.mjs

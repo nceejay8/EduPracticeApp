@@ -1,14 +1,14 @@
 import React, { useState, useMemo, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { Icon } from '@iconify/react';
-import { useRateLimit } from '../hooks/useRateLimit';
-import { PRACTICE_SCENARIOS, getCustomScenarios, saveCustomScenario, deleteCustomScenario, getCustomMockExams, saveCustomMockExam, deleteCustomMockExam } from '../data/practiceScenarios';
-import { SUBJECT_IDS, listTopics } from '../data/syllabus';
-import { invalidateCoverage } from '../data/syllabusProgress';
 import { Badge } from '../components/ui';
-
-const ADMIN_PIN_KEY  = 'eduPractice_adminVerified';
-const CORRECT_PIN    = 'EduAdmin24';
+import { SUBJECT_IDS, listTopics } from '../data/syllabus';
+import { useIsAdmin } from '../hooks/useIsAdmin';
+import { PRACTICE_SCENARIOS, getCustomScenarios, saveCustomScenario, deleteCustomScenario, getCustomMockExams, saveCustomMockExam, deleteCustomMockExam } from '../data/practiceScenarios';
+import { invalidateCoverage } from '../data/syllabusProgress';
+import { getPublishedScenarios } from '../data/publishedScenarios';
+import AdminQuestionQueue from '../components/AdminQuestionQueue';
+import { useAuth } from '../contexts/AuthContext';
 
 const SUBJECTS   = ['physics', 'mathematics'];
 const LEVELS     = ['A-Level', 'UACE'];
@@ -31,81 +31,52 @@ const emptyPart = () => ({ label: '', text: '', marks: 1 });
 const emptyMark = () => ({ criterion: '', marks: 1, max: 1 });
 
 // ─────────────────────────────────────────────────────────────────────────────
-// PIN GATE
+// ACCESS GATE
 // ─────────────────────────────────────────────────────────────────────────────
-function PinGate({ onVerified }) {
-  const [pin, setPin] = useState('');
-  const [err, setErr] = useState('');
-  const inputRef = useRef(null);
-  const pinRL = useRateLimit('adminPin');
-
-  const handleSubmit = (e) => {
-    e.preventDefault();
-
-    if (pinRL.blocked) {
-      setErr(pinRL.message);
-      return;
-    }
-
-    if (pin === CORRECT_PIN) {
-      sessionStorage.setItem(ADMIN_PIN_KEY, '1');
-      onVerified();
-    } else {
-      pinRL.record();
-      // remaining before this attempt minus 1 = accurate remaining after recording
-      const remainingAfter = Math.max(0, pinRL.remaining - 1);
-      const willBeBlocked = remainingAfter === 0;
-      setErr(willBeBlocked
-        ? 'Too many incorrect attempts. Access is temporarily locked.'
-        : `Incorrect PIN. ${remainingAfter} attempt${remainingAfter !== 1 ? 's' : ''} remaining.`
-      );
-      setPin('');
-      inputRef.current?.focus();
-    }
-  };
+// Replaces a hardcoded PIN that was compiled into the bundle and printed on this
+// screen. Access is now decided by the `content_admins` table, which has no
+// INSERT policy — so the only way in is to add your own user id in the Supabase
+// SQL editor. See supabase/migrations/20261001_practice_questions.sql.
+//
+// This component controls what is rendered. It is not the security boundary:
+// practice_questions enforces the same check in RLS, so a student who reaches
+// this page by editing localStorage still cannot publish anything.
+function AccessGate({ state }) {
+  const notVerified = state.error === 'not-verified';
 
   return (
     <div className="min-h-screen bg-[#0B1120] flex items-center justify-center px-4">
-      <div className="w-full max-w-sm">
-        <div className="text-center mb-8">
-          <div className="w-16 h-16 rounded-2xl bg-amber-500/15 border border-amber-500/30 flex items-center justify-center mx-auto mb-4">
-            <Icon icon="solar:shield-bold" width="32" className="text-amber-400" />
-          </div>
-          <h1 className="text-2xl font-bold text-white">Admin Access</h1>
-          <p className="text-sm text-slate-400 mt-1">Enter the admin PIN to continue</p>
+      <div className="w-full max-w-sm text-center">
+        <div className="w-16 h-16 rounded-2xl bg-amber-500/15 border border-amber-500/30 flex items-center justify-center mx-auto mb-4">
+          <Icon icon="solar:shield-bold" width="32" className="text-amber-400" />
         </div>
+        <h1 className="text-2xl font-bold text-white">Admin Access</h1>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <input
-              ref={inputRef}
-              type="password"
-              value={pin}
-              onChange={e => { setPin(e.target.value); if (!pinRL.blocked) setErr(''); }}
-              placeholder="Admin PIN"
-              autoFocus
-              disabled={pinRL.blocked}
-              className="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white placeholder-slate-500 focus:outline-none focus:border-amber-500/50 focus:bg-white/[0.07] transition-all text-center text-lg tracking-widest disabled:opacity-40 disabled:cursor-not-allowed"
-            />
-            {(err || pinRL.blocked) && (
-              <p className="text-red-400 text-xs mt-2 text-center">
-                {pinRL.blocked ? pinRL.message : err}
+        {state.loading ? (
+          <p className="text-sm text-slate-400 mt-3">Checking your access…</p>
+        ) : (
+          <>
+            <p className="text-sm text-slate-400 mt-3">
+              {notVerified
+                ? 'Could not verify your access. The admin allowlist may not be set up on this project yet.'
+                : 'This account is not on the admin allowlist.'}
+            </p>
+            {notVerified && (
+              <p className="text-xs text-slate-500 mt-3 leading-relaxed">
+                Run <span className="text-slate-400">supabase/migrations/20261001_practice_questions.sql</span>{' '}
+                in the Supabase SQL editor, then add your user id to{' '}
+                <span className="text-slate-400">content_admins</span>.
               </p>
             )}
-          </div>
-          <button
-            type="submit"
-            disabled={pinRL.blocked}
-            className="w-full py-3 rounded-xl bg-amber-500 hover:bg-amber-400 text-black font-bold text-sm transition-all active:scale-[0.98] disabled:opacity-40 disabled:cursor-not-allowed"
-          >
-            {pinRL.blocked ? `Locked — try in ${pinRL.countdown}` : 'Unlock Admin'}
-          </button>
-          <Link to="/" className="block text-center text-sm text-slate-500 hover:text-slate-300 transition-colors">
-            ← Back to EduPractice
-          </Link>
-        </form>
+          </>
+        )}
 
-        <p className="text-center text-xs text-slate-600 mt-8">Default PIN: EduAdmin24</p>
+        <Link
+          to="/"
+          className="inline-block mt-8 text-sm text-slate-500 hover:text-slate-300 transition-colors"
+        >
+          Back to EduPractice
+        </Link>
       </div>
     </div>
   );
@@ -660,38 +631,44 @@ const BUILT_IN_MOCKS = [
 ];
 
 export default function Admin() {
-  const isVerified = sessionStorage.getItem(ADMIN_PIN_KEY) === '1';
-  const [verified, setVerified] = useState(isVerified);
-  const [tab, setTab]           = useState('scenarios');
+  // Was `sessionStorage.getItem(ADMIN_PIN_KEY) === '1'`, which meant a PIN
+  // compiled into the bundle. Now it is a lookup against the admin allowlist,
+  // which the database also enforces via RLS on the tables this page writes to.
+  const admin = useIsAdmin();
+  const { logOut } = useAuth();
+  const [tab, setTab]           = useState('queue');
   const [showAddScenario, setShowAddScenario] = useState(false);
   const [showAddMock,     setShowAddMock]     = useState(false);
   const [filterSubject, setFilterSubject]     = useState('all');
   const forceUpdate = useForceUpdate();
 
-  const customScenarios = useMemo(() => getCustomScenarios(), [verified, forceUpdate]);
-  const customMocks     = useMemo(() => getCustomMockExams(),  [verified, forceUpdate]);
+  const customScenarios = useMemo(() => getCustomScenarios(), [admin.isAdmin, forceUpdate]);
+  const customMocks     = useMemo(() => getCustomMockExams(),  [admin.isAdmin, forceUpdate]);
+  const published       = getPublishedScenarios();
 
   const allScenarios = useMemo(() => {
-    const all = [...PRACTICE_SCENARIOS, ...getCustomScenarios()];
+    const all = [...PRACTICE_SCENARIOS, ...getCustomScenarios(), ...getPublishedScenarios()];
     if (filterSubject === 'all') return all;
     return all.filter(s => s.subject === filterSubject);
-  }, [filterSubject, verified]);
+  }, [filterSubject, admin.isAdmin]);
 
   const refresh = () => forceUpdate();
 
-  if (!verified) return <PinGate onVerified={() => setVerified(true)} />;
+  if (admin.loading) return null;
+  if (!admin.isAdmin) return <AccessGate state={admin} />;
 
   const TABS = [
+    { id: 'queue',    label: 'Review Queue', icon: 'solar:inbox-bold' },
     { id: 'scenarios',  label: 'Scenarios', icon: 'solar:document-text-bold' },
     { id: 'mocks',      label: 'Mock Exams', icon: 'solar:target-bold' },
     { id: 'importexport', label: 'Import / Export', icon: 'solar:transfer-horizontal-bold' },
   ];
 
   const statsItems = [
-    { label: 'Built-in Scenarios', value: PRACTICE_SCENARIOS.length,        icon: 'solar:library-bold',     color: 'text-blue-400' },
-    { label: 'Custom Scenarios',   value: getCustomScenarios().length,       icon: 'solar:add-circle-bold',  color: 'text-amber-400' },
-    { label: 'Built-in Mocks',     value: BUILT_IN_MOCKS.length,            icon: 'solar:target-bold',      color: 'text-violet-400' },
-    { label: 'Custom Mocks',       value: getCustomMockExams().length,       icon: 'solar:star-bold',        color: 'text-emerald-400' },
+    { label: 'Built-in Scenarios', value: PRACTICE_SCENARIOS.length,  icon: 'solar:library-bold',    color: 'text-blue-400' },
+    { label: 'Generated (live)',   value: published.length,           icon: 'solar:stars-minimalistic-bold', color: 'text-emerald-400' },
+    { label: 'Custom Scenarios',   value: customScenarios.length,     icon: 'solar:add-circle-bold', color: 'text-amber-400' },
+    { label: 'Custom Mocks',       value: customMocks.length,         icon: 'solar:star-bold',       color: 'text-violet-400' },
   ];
 
   return (
@@ -715,12 +692,16 @@ export default function Admin() {
           </div>
         </div>
 
+        {/* Was "Lock", which cleared the PIN from sessionStorage. There is no
+            unlock state to return to any more — access follows the signed-in
+            account — so this is just a way to end the session on a shared
+            machine, which is the thing the button was really for. */}
         <button
-          onClick={() => { sessionStorage.removeItem(ADMIN_PIN_KEY); setVerified(false); }}
+          onClick={logOut}
           className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/5 border border-white/10 text-xs text-slate-400 hover:text-white hover:bg-white/10 transition-colors"
         >
           <Icon icon="solar:logout-2-bold" width="14" />
-          Lock
+          Sign out
         </button>
       </header>
 
@@ -751,6 +732,11 @@ export default function Admin() {
             </button>
           ))}
         </div>
+
+        {/* ── Review queue ── */}
+        {tab === 'queue' && (
+          <AdminQuestionQueue onChanged={refresh} />
+        )}
 
         {/* ── Scenarios tab ── */}
         {tab === 'scenarios' && (
@@ -790,7 +776,12 @@ export default function Admin() {
                 <ScenarioCard
                   key={s.id}
                   scenario={s}
-                  isCustom={getCustomScenarios().some(c => c.id === s.id)}
+                  // A generated scenario is not editable from here. Retiring one
+                  // is a status change in the Review Queue, not a localStorage
+                  // delete — otherwise retiring it would leave it live for
+                  // students, and "delete" would suggest a removal that never
+                  // happened.
+                  isCustom={!s.generated && getCustomScenarios().some(c => c.id === s.id)}
                   onDelete={id => { deleteCustomScenario(id); invalidateCoverage(); refresh(); }}
                 />
               ))}

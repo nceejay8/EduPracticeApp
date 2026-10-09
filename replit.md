@@ -189,13 +189,74 @@ device that made them, and the queue retries in the background. The migration
 enables RLS and adds append-only policies — without them the table is readable by
 anyone, so do not skip that part.
 
+## Generated questions (the daily pipeline)
+
+`practice_questions` (migration `20261001_practice_questions.sql`) holds
+AI-generated scenarios that grow at runtime, unlike the 19 built-ins that ship
+in the bundle. The flow:
+
+```
+GitHub Actions cron (04:45 UTC)
+  → scripts/generate-questions.mjs        policy: topics, cap, validation
+  → ai-proxy Edge Function (x-generator-secret)   holds the Gemini key
+  → Supabase upsert, status 'pending'
+  → /admin → Review Queue                an admin approves or rejects
+  → status 'published' → usePublishedScenarios → students
+```
+
+Generation policy lives in the script, not the Edge Function, precisely so
+`test/generatedQuestions.test.mjs` can exercise it without a key or network:
+
+- **50 per day max**, thinnest topic first (published + pending), subjects
+  interleaved so a run cannot drain Physics before Mathematics starts, ties
+  rotated by day so coverage spreads instead of always picking the same
+  alphabetical first.
+- **Cap of 10 live questions per topic** — published + pending, so an unreviewed
+  backlog cannot push the eventual total past 10. Rejected rows are retired and
+  do not consume the cap. Built-ins are curated separately, not counted.
+- **Ids are `gen-<YYYYMMDD>-<topicId>-<nn>`**, one question per topic per run,
+  and a same-day re-run stops at the daily limit instead of generating extras —
+  a retried job is idempotent, and an admin's earlier review is never reset.
+- **Validation before the queue**: attribution must resolve through
+  `resolveContentRef` to exactly the intended topic id (a question that resolves
+  nowhere or to chapter level would show on the workboard but not on
+  `/syllabus`), 2–6 parts, integer marks, and the mark scheme's `max` values
+  must sum to the parts' total. Failures are stored as `rejected` with the
+  reason, so the queue can explain them instead of content vanishing silently.
+- **Independent numeric verification**: a second fresh call re-solves the
+  question and flags computed values that disagree. Disagreements reject the
+  row; if the verifier itself fails, the row still goes to review — an
+  infrastructure failure is not evidence against the question.
+
+Security model (this replaces the old hardcoded `CORRECT_PIN` and the
+`VITE_OPENROUTER_API_KEY` that shipped in the bundle):
+
+- The Gemini key exists once, as the `GEMINI_API_KEY` Edge Function secret.
+  Student chat/grading send their Supabase JWT; the function verifies it and
+  rate limits per user. The generator sends `GENERATOR_SECRET`.
+- `content_admins` has **no INSERT policy** — rows are added by hand in the SQL
+  editor, so a compromised session cannot promote itself. The same
+  `is_content_admin()` check runs inside RLS on `practice_questions`, so the UI
+  gate is presentation, not the boundary. Students read `published` only;
+  there is deliberately no client INSERT or DELETE policy.
+- Required Actions secrets: `SUPABASE_URL`, `SUPABASE_ANON_KEY`,
+  `SUPABASE_SERVICE_ROLE_KEY`, `GENERATOR_SECRET`. Run the migration first,
+  then insert your own user id into `content_admins` (SQL in the migration
+  comments).
+
+Costs stay at zero while the free tiers hold: GitHub Actions on a public repo,
+Supabase Free edge invocations, Gemini free tier (shared between generation and
+students — generation uses ~100 calls/day). Note GitHub disables scheduled
+workflows after ~60 days without repository activity.
+
 ## Commands
 
 ```bash
-npm run dev     # dev server
-npm run build   # production build
-npm run lint    # eslint (configured for .ts/.tsx; .jsx is not covered)
-npm test        # syllabus + session policy + offline sync
+npm run dev      # dev server
+npm run build    # production build
+npm run lint     # eslint (configured for .ts/.tsx; .jsx is not covered)
+npm test         # syllabus + session policy + offline sync + generated-question policy
+npm run generate # run the question generator (needs the 4 env vars; see above)
 ```
 
 The test runs on plain Node — `test/register.mjs` bridges the two gaps between
@@ -203,3 +264,6 @@ Vite and Node (extensionless imports, `import.meta.env`). No test framework.
 `test/sync.test.mjs` covers the merge rules and the outbox: an offline attempt
 staying visible, syncing exactly once, a failing row not blocking the rows behind
 it, and a corrupt queue being filtered rather than flushed.
+`test/generatedQuestions.test.mjs` covers the generator's validation, topic
+ranking and id scheme — the rules that decide what a student may eventually be
+served.

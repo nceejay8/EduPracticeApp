@@ -9,6 +9,7 @@ import SearchModal from '../components/SearchModal';
 import NotificationsPanel from '../components/NotificationsPanel';
 import OfflineBanner from '../components/OfflineBanner';
 import useSyncEngine from '../hooks/useSyncEngine';
+import { usePublishedScenarios } from '../hooks/usePublishedScenarios';
 import { useNotifications } from '../contexts/NotificationsContext';
 import { deriveAnalytics } from '../data/examBank';
 import { describeRemaining } from '../lib/sessionPolicy';
@@ -22,6 +23,12 @@ export default function Layout() {
   // Drains the durable queue of writes taken while offline. Mounted here so it
   // runs for the whole authenticated app rather than per page.
   const { pending: pendingSyncCount } = useSyncEngine(authUser?.id);
+
+  // Starts the generated-question fetch as early as possible. Mounted at the top
+  // of the authenticated app so it runs alongside ProtectedRoute's loader, which
+  // holds the screen for a minimum of three seconds — the pool is therefore
+  // normally settled before any page renders, and no page has to block on it.
+  usePublishedScenarios();
   const { unreadCount, markAllRead, refresh: refreshNotifs } = useNotifications();
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
   const [isSearchOpen, setIsSearchOpen] = useState(false);

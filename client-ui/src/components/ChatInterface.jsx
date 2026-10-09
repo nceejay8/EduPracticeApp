@@ -239,12 +239,14 @@ export default function ChatInterface({ isOpen, onClose, initialMessage, context
     }
 
     if (!isAvailable()) {
-      // Graceful fallback when no API key
+      // Only reachable when Supabase itself is unconfigured. The AI key is no
+      // longer something the client can be missing, so this is a setup problem
+      // with the app, not something the user can fix with an env var.
       await new Promise((r) => setTimeout(r, 800));
       setIsSearchingModels(false);
       setMessages((prev) => [
         ...prev,
-        { id: botId, role: 'assistant', text: 'Maestro needs an OpenRouter API key (VITE_OPENROUTER_API_KEY) to answer your questions. Please add it in the environment variables.', time: timeStr },
+        { id: botId, role: 'assistant', text: 'Maestro is unavailable on this device because the app is not connected to the server. Please check your connection and try again.', time: timeStr },
       ]);
       return;
     }
