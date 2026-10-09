@@ -103,7 +103,7 @@ export default function Profile() {
     },
     {
       name: 'Master of Physics',
-      icon: 'solar:flash-bold',
+      icon: 'solar:bolt-bold',
       desc: 'Achieve 80 %+ accuracy in Physics',
       earned: (a) => {
         const p = a.subjectPerformance?.find(s => s.subject === 'Physics');
@@ -112,7 +112,7 @@ export default function Profile() {
     },
     {
       name: 'Quick Thinker',
-      icon: 'solar:lightning-bolt-linear',
+      icon: 'solar:lightning-linear',
       desc: 'Score 75 %+ average across all attempts',
       earned: (a) => a.avgScore >= 75 && a.totalAttempts >= 3,
     },

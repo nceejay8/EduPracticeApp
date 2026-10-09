@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { Icon } from '@iconify/react';
 
 /* ── Station data with individual colour themes ──────────────────────────── */
@@ -23,7 +24,7 @@ const STATIONS = [
     label: 'Chilled · Instrumental',
     description: 'Lofi hip-hop study beats',
     src: 'https://ice4.somafm.com/deepspaceone-128-mp3',
-    icon: 'solar:headphones-bold',
+    icon: 'solar:headphones-round-bold',
     grad: 'from-violet-600 via-purple-500 to-indigo-600',
     glow: '#7c3aed',
     ring: 'ring-violet-500/40',
@@ -89,6 +90,9 @@ function EqualizerBars({ playing, color = '#10b981' }) {
 
 export default function FocusAudio() {
   const audioRef = useRef(null);
+  // Whether the user wants music on, independent of the element's paused state,
+  // so a mobile OS auto-pause can be resumed when the page returns to view.
+  const intentRef = useRef(false);
   const [open, setOpen]           = useState(false);
   const [stationId, setStationId] = useState(STATIONS[0].id);
   const [playing, setPlaying]     = useState(false);
@@ -114,11 +118,14 @@ export default function FocusAudio() {
   }, [volume]);
 
   const stop = () => {
-    if (audioRef.current) {
-      audioRef.current.pause();
-      audioRef.current.removeAttribute('src');
-      audioRef.current.load();
-    }
+    intentRef.current = false;
+    try {
+      if (audioRef.current) {
+        audioRef.current.pause();
+        audioRef.current.removeAttribute('src');
+        audioRef.current.load();
+      }
+    } catch { /* ignore */ }
     setPlaying(false);
     setLoading(false);
   };
@@ -129,6 +136,7 @@ export default function FocusAudio() {
     const target = STATIONS.find(s => s.id === id) || STATIONS[0];
     try {
       if (!audioRef.current) return;
+      intentRef.current = true;
       audioRef.current.src    = target.src;
       audioRef.current.volume = volume;
       await audioRef.current.play();
@@ -152,6 +160,18 @@ export default function FocusAudio() {
     if (audioRef.current) { audioRef.current.pause(); audioRef.current.src = ''; }
   }, []);
 
+  // Mobile browsers suspend HTML media on screen lock or when the tab is
+  // backgrounded. If the user had music on, pick the stream back up on return.
+  useEffect(() => {
+    const onVisible = () => {
+      if (document.visibilityState !== 'visible') return;
+      const el = audioRef.current;
+      if (intentRef.current && el && el.paused && el.src) el.play().catch(() => {});
+    };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => document.removeEventListener('visibilitychange', onVisible);
+  }, []);
+
   const volumeIcon = volume === 0
     ? 'solar:volume-cross-bold'
     : volume < 0.45
@@ -169,7 +189,19 @@ export default function FocusAudio() {
         }
       `}</style>
 
-      <audio ref={audioRef} preload="none" />
+      <audio
+        ref={audioRef}
+        preload="none"
+        onPlaying={() => { setPlaying(true); setLoading(false); }}
+        onPause={() => setPlaying(false)}
+        onError={() => {
+          if (intentRef.current) {
+            setError('Stream unavailable. Try another station.');
+            setPlaying(false);
+            setLoading(false);
+          }
+        }}
+      />
 
       <button
         onClick={() => setOpen(o => !o)}
@@ -204,15 +236,19 @@ export default function FocusAudio() {
       </button>
 
       {/* ── Panel ────────────────────────────────────────────────────────── */}
-      {open && (
+      {/* Portalled to <body>: the exam header carries a backdrop-blur, which
+          makes it the containing block for position:fixed descendants, so an
+          in-header fixed sheet positions against the header and lands
+          off-screen on phones. */}
+      {open && createPortal(
         <>
           {/* Backdrop */}
-          <div className="fixed inset-0 z-40 bg-black/20 backdrop-blur-[2px]"
+          <div className="fixed inset-0 z-[60] bg-black/20 backdrop-blur-[2px]"
                onClick={() => setOpen(false)} aria-hidden="true" />
 
           <div className={`
-            fixed left-3 right-3 bottom-[68px] z-50 flex flex-col overflow-hidden
-            sm:absolute sm:left-auto sm:right-0 sm:bottom-auto sm:top-full sm:mt-2 sm:w-[340px]
+            fixed left-3 right-3 bottom-3 z-[70] flex flex-col overflow-hidden max-h-[80vh]
+            sm:left-auto sm:right-4 sm:bottom-auto sm:top-[76px] sm:w-[340px] sm:max-h-[70vh]
             rounded-2xl border border-white/[0.10] shadow-2xl
           `}
             style={{ background: 'linear-gradient(160deg,#0f1629 0%,#111827 60%,#0d1220 100%)' }}
@@ -266,7 +302,7 @@ export default function FocusAudio() {
             </div>
 
             {/* ── Station grid 2×2 ───────────────────────────────────── */}
-            <div className="grid grid-cols-2 gap-2 p-3 overflow-y-auto shrink-0">
+            <div className="grid grid-cols-2 gap-2 p-3 overflow-y-auto flex-1 min-h-0">
               {STATIONS.map(s => {
                 const active = s.id === stationId;
                 return (
@@ -359,7 +395,8 @@ export default function FocusAudio() {
             </div>
 
           </div>
-        </>
+        </>,
+        document.body
       )}
     </div>
   );

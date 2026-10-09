@@ -34,7 +34,7 @@ export const SYLLABUS = {
       {
         id: 'phy-mechanics',
         name: 'Mechanics',
-        icon: 'solar:compass-2-linear',
+        icon: 'solar:compass-linear',
         aliases: ['Classical Mechanics', 'Mechanics'],
         topics: [
           {
@@ -428,7 +428,7 @@ export const SYLLABUS = {
       {
         id: 'phy-modern',
         name: 'Modern Physics',
-        icon: 'solar:atom-italic',
+        icon: 'solar:atom-linear',
         aliases: ['Modern Physics', 'Quantum Physics'],
         topics: [
           {
@@ -526,7 +526,7 @@ export const SYLLABUS = {
       {
         id: 'mat-pure',
         name: 'Pure Mathematics',
-        icon: 'solar:function-linear',
+        icon: 'solar:calculator-minimalistic-linear',
         aliases: ['Pure Mathematics'],
         topics: [
           {
@@ -609,7 +609,7 @@ export const SYLLABUS = {
       {
         id: 'mat-calc',
         name: 'Calculus',
-        icon: 'solar:graph-2-linear',
+        icon: 'solar:graph-linear',
         aliases: ['Calculus', 'Calculus Applications'],
         topics: [
           {
@@ -675,7 +675,7 @@ export const SYLLABUS = {
       {
         id: 'mat-coord',
         name: 'Coordinate Geometry',
-        icon: 'solar:axis-vertical-linear',
+        icon: 'solar:ruler-cross-pen-linear',
         aliases: ['Coordinate Geometry', 'Analytical Geometry'],
         topics: [
           {
@@ -735,7 +735,7 @@ export const SYLLABUS = {
       {
         id: 'mat-trig',
         name: 'Trigonometry',
-        icon: 'solar:angle-linear',
+        icon: 'solar:ruler-angular-linear',
         aliases: ['Trigonometry'],
         topics: [
           {
@@ -985,7 +985,7 @@ export const SYLLABUS = {
       {
         id: 'mat-numerical',
         name: 'Numerical Methods',
-        icon: 'solar:settings-5-linear',
+        icon: 'solar:settings-minimalistic-linear',
         aliases: ['Numerical Methods'],
         topics: [
           {

@@ -194,7 +194,7 @@ export default function Analytics() {
             border="hover:border-[#f99c00]/20"
           />
           <StreakCard
-            icon="solar:trophy-bold"
+            icon="solar:cup-star-bold"
             label="Longest Streak"
             value={`${data.longestStreak} ${data.longestStreak === 1 ? 'Day' : 'Days'}`}
             sub={data.longestStreak > 0 ? 'Your best record so far.' : 'No streaks yet.'}

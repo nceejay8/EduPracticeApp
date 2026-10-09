@@ -71,7 +71,7 @@ function ModelSearchingIndicator() {
 const SUBJECT_CARDS = {
   physics: {
     id: 'physics',
-    icon: 'solar:flash-bold',
+    icon: 'solar:bolt-bold',
     color: 'from-blue-500 to-cyan-500',
   },
   mathematics: {
@@ -129,10 +129,8 @@ export default function Practice() {
   const [aiState, setAiState] = useState(draft?.feedback ? 'feedback' : 'idle'); // idle | analyzing | feedback
   const [isChatOpen, setIsChatOpen] = useState(false);
   const [solutionText, setSolutionText] = useState(draft?.solutionText || '');
-  const [selectedFileName, setSelectedFileName] = useState(draft?.selectedFileName || '');
   const [feedback, setFeedback] = useState(draft?.feedback || null);
   const [error, setError] = useState('');
-  const inputFileRef = useRef(null);
   const workboardStartedAt = useRef(Date.now());
 
   // A valid deep link takes over from whatever the draft held. `normalizeSubject`
@@ -199,10 +197,9 @@ export default function Practice() {
       selectedSubject,
       selectedTopicRef,
       solutionText,
-      selectedFileName,
       feedback,
     });
-  }, [step, selectedExamLevel, selectedSubject, selectedTopicRef, solutionText, selectedFileName, feedback]);
+  }, [step, selectedExamLevel, selectedSubject, selectedTopicRef, solutionText, feedback]);
 
   const handleExamLevelSelect = (levelId) => {
     setSelectedExamLevel(levelId);
@@ -229,7 +226,6 @@ export default function Practice() {
     setSelectedTopicRef(ref);
     trackTopicView(topic.name, topic.id);
     setSolutionText('');
-    setSelectedFileName('');
     setFeedback(null);
     setError('');
     workboardStartedAt.current = Date.now();
@@ -246,7 +242,6 @@ export default function Practice() {
     setSelectedTopicRef(null);
     setAiState('idle');
     setSolutionText('');
-    setSelectedFileName('');
     setFeedback(null);
     setError('');
     setSearchParams({ level: selectedExamLevel || 'a-level', subject: selectedSubject });
@@ -292,7 +287,6 @@ export default function Practice() {
         topic: currentScenario.topic || selectedTopicRef.topicName,
         question: currentScenario.stem,
         studentAnswer: solutionText.trim(),
-        attachmentName: selectedFileName || null,
       });
 
       if (!result) {
@@ -628,39 +622,6 @@ export default function Practice() {
                 disabled={aiState === 'analyzing'}
               />
 
-              {/* Upload Area */}
-              <div
-                onClick={() => aiState !== 'analyzing' && inputFileRef.current?.click()}
-                className={`w-full h-40 rounded-2xl border-2 border-dashed border-white/15 hover:border-[#f99c00]/50 bg-[#111827]/50 flex flex-col items-center justify-center text-center transition-all duration-200 ${aiState === 'analyzing' ? 'cursor-not-allowed opacity-50' : 'cursor-pointer group'} px-5`}
-              >
-                <input
-                  ref={inputFileRef}
-                  type="file"
-                  accept=".png,.jpg,.jpeg,.pdf"
-                  className="hidden"
-                  disabled={aiState === 'analyzing'}
-                  onChange={(e) => {
-                    const file = e.target.files?.[0];
-                    if (file) {
-                      // Validate file size (max 5MB)
-                      if (file.size > 5 * 1024 * 1024) {
-                        setError('File size must be less than 5MB');
-                        return;
-                      }
-                      setSelectedFileName(file.name);
-                      setError('');
-                    }
-                  }}
-                />
-                <div className="w-14 h-14 rounded-full bg-white/5 group-hover:bg-[#f99c00]/10 flex items-center justify-center text-slate-400 group-hover:text-[#f99c00] transition-all mb-3">
-                  <Icon icon="solar:upload-minimalistic-linear" width="24" />
-                </div>
-                <p className="text-base font-semibold text-white mb-1">{t('practice.clickToUpload')}</p>
-                <p className="text-sm text-slate-500 max-w-xs">
-                  {selectedFileName || `${t('practice.uploadDescription')} Attachment is optional.`}
-                </p>
-              </div>
-
               {error && (
                 <div className="rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-300 flex items-start gap-3">
                   <Icon icon="solar:danger-bold" width="18" className="shrink-0 mt-0.5" />
@@ -742,7 +703,6 @@ export default function Practice() {
                         setAiState('idle');
                         setFeedback(null);
                         setSolutionText('');
-                        setSelectedFileName('');
                         setError('');
                       }}
                       className="px-6 py-3 rounded-full border border-white/15 hover:border-white/25 text-sm font-semibold text-slate-300 hover:text-white hover:bg-white/5 transition-all w-full sm:w-auto active:scale-95"

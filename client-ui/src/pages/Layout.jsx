@@ -402,7 +402,7 @@ function SessionFooter({ onSignOut, isSigningOut, sessionDeadline, sessionDays }
         className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium text-slate-400 hover:text-white hover:bg-white/5 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
       >
         <Icon
-          icon={isSigningOut ? 'solar:restart-linear' : 'solar:logout-square-linear'}
+          icon={isSigningOut ? 'solar:restart-linear' : 'solar:logout-2-linear'}
           width="16" height="16"
           style={{ strokeWidth: 1.5 }}
           className={isSigningOut ? 'animate-spin' : ''}

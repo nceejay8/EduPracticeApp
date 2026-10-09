@@ -47,7 +47,6 @@ export async function evaluatePracticeSolution({
   topic,
   question,
   studentAnswer,
-  attachmentName = null,
 }) {
   // Courtesy limit only. It stops a double-submit from burning the user's
   // allowance, but it is per-device and self-documented in utils/rateLimiter.js
@@ -69,8 +68,6 @@ export async function evaluatePracticeSolution({
     '',
     'Question:',
     question,
-    '',
-    attachmentName ? `Attached file name: ${attachmentName}` : 'Attached file name: none',
     '',
     'Student answer:',
     studentAnswer,

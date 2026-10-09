@@ -39,7 +39,7 @@ export const MASTERY_THRESHOLD = 80;
 export const DEVELOPING_THRESHOLD = 50;
 
 export const STATUS_META = {
-  'not-started': { label: 'Not started', tone: 'slate', icon: 'solar:circle-minimalistic-linear' },
+  'not-started': { label: 'Not started', tone: 'slate', icon: 'solar:record-circle-linear' },
   learning:     { label: 'Needs work',  tone: 'rose',  icon: 'solar:close-circle-bold' },
   developing:   { label: 'Developing',  tone: 'amber', icon: 'solar:loader-bold' },
   mastered:     { label: 'Mastered',    tone: 'emerald', icon: 'solar:check-circle-bold' },

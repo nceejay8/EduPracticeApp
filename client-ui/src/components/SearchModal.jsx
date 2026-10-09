@@ -65,7 +65,7 @@ export default function SearchModal({ isOpen, onClose }) {
               type: 'Subtopic',
               title: subtopic.name,
               description: `${topic.name} · ${chapter.name}`,
-              icon: 'solar:circle-minimalistic-linear',
+              icon: 'solar:record-circle-linear',
               path: `/syllabus?subject=${subjectId}&topic=${topic.id}`,
               color: subject.color
             });

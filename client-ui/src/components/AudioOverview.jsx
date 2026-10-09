@@ -148,7 +148,7 @@ export default function AudioOverview({ topic, subject, level, description, onCl
           <div className="flex items-center justify-between px-5 py-4 border-b border-white/[0.07]">
             <div className="flex items-center gap-2.5">
               <div className="w-8 h-8 rounded-lg bg-violet-500/20 border border-violet-500/30 flex items-center justify-center">
-                <Icon icon="solar:headphones-bold" width="16" className="text-violet-400" />
+                <Icon icon="solar:headphones-round-bold" width="16" className="text-violet-400" />
               </div>
               <div>
                 <p className="text-xs font-bold uppercase tracking-widest text-violet-400">Audio Overview</p>
