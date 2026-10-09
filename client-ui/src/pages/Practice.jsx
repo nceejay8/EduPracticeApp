@@ -129,6 +129,8 @@ export default function Practice() {
   const [aiState, setAiState] = useState(draft?.feedback ? 'feedback' : 'idle'); // idle | analyzing | feedback
   const [isChatOpen, setIsChatOpen] = useState(false);
   const [solutionText, setSolutionText] = useState(draft?.solutionText || '');
+  const [selectedOption, setSelectedOption] = useState('');
+  const [numericAnswer, setNumericAnswer] = useState('');
   const [feedback, setFeedback] = useState(draft?.feedback || null);
   const [error, setError] = useState('');
   const workboardStartedAt = useRef(Date.now());
@@ -181,6 +183,11 @@ export default function Practice() {
     }
   }, [selectedTopicRef, poolReady]);
 
+  // Objective questions (multiple-choice and numeric) carry their own answer and
+  // are marked locally, so they never touch the AI grader or cost quota.
+  const questionType = currentScenario?.type || 'written';
+  const isObjective = questionType === 'mcq' || questionType === 'numeric';
+
   // True when the topic exists in the syllabus but has no material behind it yet.
   // Also gated, for the same reason: asking the coverage map before the pool has
   // loaded would report a thin topic as empty and say "Coming soon" for a topic
@@ -226,6 +233,8 @@ export default function Practice() {
     setSelectedTopicRef(ref);
     trackTopicView(topic.name, topic.id);
     setSolutionText('');
+    setSelectedOption('');
+    setNumericAnswer('');
     setFeedback(null);
     setError('');
     workboardStartedAt.current = Date.now();
@@ -242,6 +251,8 @@ export default function Practice() {
     setSelectedTopicRef(null);
     setAiState('idle');
     setSolutionText('');
+    setSelectedOption('');
+    setNumericAnswer('');
     setFeedback(null);
     setError('');
     setSearchParams({ level: selectedExamLevel || 'a-level', subject: selectedSubject });
@@ -261,15 +272,61 @@ export default function Practice() {
   const handleSubmit = async () => {
     if (aiState !== 'idle') return;
 
-    // Validate solution
-    if (!solutionText.trim()) {
-      setError('Please write your solution before submitting for evaluation.');
-      return;
-    }
-
     // Validate scenario is loaded
     if (!currentScenario) {
       setError('Practice question failed to load. Please try again.');
+      return;
+    }
+
+    // Objective questions are graded right here — no AI call, so the result is
+    // instant and a topic can be practised without spending any API quota.
+    if (isObjective) {
+      if (questionType === 'mcq' && !selectedOption) {
+        setError('Please select an answer before checking.');
+        return;
+      }
+      if (questionType === 'numeric' && String(numericAnswer).trim() === '') {
+        setError('Please enter a number before checking.');
+        return;
+      }
+
+      setError('');
+      const tolerance = currentScenario.tolerance ?? 0.01;
+      const num = parseFloat(numericAnswer);
+      const correct = questionType === 'mcq'
+        ? String(selectedOption).trim() === String(currentScenario.answer).trim()
+        : (!Number.isNaN(num) && Math.abs(num - currentScenario.answer) <= tolerance);
+      const score = correct ? 100 : 0;
+
+      setFeedback({
+        score,
+        summary: correct
+          ? 'Correct — nicely done.'
+          : 'Not quite. Read the explanation and try again.',
+        strengths: correct ? ['You gave the correct answer.'] : [],
+        improvements: correct ? [] : [`The correct answer is ${currentScenario.answer}.`],
+        modelAnswer: currentScenario.explanation || '',
+      });
+      setAiState('feedback');
+
+      if (selectedTopicRef) {
+        const durationMinutes = Math.max(1, Math.round((Date.now() - workboardStartedAt.current) / 60000));
+        try {
+          trackPracticeAttempt(selectedTopicRef.topicName, score, durationMinutes, {
+            subject: selectedTopicRef.subjectId,
+            topicId: selectedTopicRef.topicId,
+            chapterId: selectedTopicRef.chapterId,
+          }, authUserId);
+        } catch (trackErr) {
+          console.warn('Failed to track attempt:', trackErr);
+        }
+      }
+      return;
+    }
+
+    // Validate written solution
+    if (!solutionText.trim()) {
+      setError('Please write your solution before submitting for evaluation.');
       return;
     }
 
@@ -612,15 +669,57 @@ export default function Practice() {
 
             {/* Answer Section */}
             <div className="space-y-5">
-              <h3 className="text-xl sm:text-2xl font-bold text-white">{t('practice.yourSolution')}</h3>
+              <h3 className="text-xl sm:text-2xl font-bold text-white">{isObjective ? 'Your Answer' : t('practice.yourSolution')}</h3>
 
-              <textarea
-                value={solutionText}
-                onChange={(e) => setSolutionText(e.target.value)}
-                placeholder="Write your derivation, working, substitutions, and final answer here."
-                className="w-full min-h-48 rounded-2xl border border-white/10 bg-[#111827] px-5 py-4 text-white placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-[#f99c00]/40 disabled:opacity-50"
-                disabled={aiState === 'analyzing'}
-              />
+              {questionType === 'mcq' ? (
+                <div className="space-y-2.5">
+                  {(currentScenario?.options || []).map((opt, i) => {
+                    const selected = selectedOption === opt;
+                    return (
+                      <button
+                        key={i}
+                        type="button"
+                        onClick={() => aiState === 'idle' && setSelectedOption(opt)}
+                        disabled={aiState !== 'idle'}
+                        className={`w-full text-left p-4 rounded-2xl border transition-all flex items-start gap-3 disabled:opacity-60 ${
+                          selected
+                            ? 'bg-[#f99c00]/15 border-[#f99c00] text-white'
+                            : 'bg-[#111827] border-white/10 hover:border-white/30 text-slate-200'
+                        }`}
+                      >
+                        <span className={`shrink-0 w-7 h-7 rounded-md flex items-center justify-center text-sm font-bold ${
+                          selected ? 'bg-[#f99c00] text-[#0B1120]' : 'bg-white/10 text-slate-300'
+                        }`}>
+                          {String.fromCharCode(65 + i)}
+                        </span>
+                        <span className="flex-1 text-sm sm:text-base">{opt}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              ) : questionType === 'numeric' ? (
+                <div>
+                  <input
+                    type="number"
+                    inputMode="decimal"
+                    step="any"
+                    value={numericAnswer}
+                    onChange={(e) => setNumericAnswer(e.target.value)}
+                    disabled={aiState !== 'idle'}
+                    placeholder="Enter a number"
+                    className="w-full rounded-2xl border border-white/10 bg-[#111827] px-5 py-4 text-lg font-semibold text-white placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-[#f99c00]/40 disabled:opacity-50"
+                  />
+                  <p className="text-xs text-slate-500 mt-2">Enter the numeric value only — units are not required.</p>
+                </div>
+              ) : (
+                <textarea
+                  value={solutionText}
+                  onChange={(e) => setSolutionText(e.target.value)}
+                  placeholder="Write your derivation, working, substitutions, and final answer here."
+                  className="w-full min-h-48 rounded-2xl border border-white/10 bg-[#111827] px-5 py-4 text-white placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-[#f99c00]/40 disabled:opacity-50"
+                  disabled={aiState === 'analyzing'}
+                />
+              )}
 
               {error && (
                 <div className="rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-300 flex items-start gap-3">
@@ -645,8 +744,8 @@ export default function Practice() {
                       </>
                     ) : (
                       <>
-                        <Icon icon="solar:magic-stick-3-linear" width="20" />
-                        <span>{t('practice.submitForEvaluation')}</span>
+                        <Icon icon={isObjective ? 'solar:check-circle-bold' : 'solar:magic-stick-3-linear'} width="20" />
+                        <span>{isObjective ? 'Check answer' : t('practice.submitForEvaluation')}</span>
                       </>
                     )}
                   </button>
@@ -703,6 +802,8 @@ export default function Practice() {
                         setAiState('idle');
                         setFeedback(null);
                         setSolutionText('');
+                        setSelectedOption('');
+                        setNumericAnswer('');
                         setError('');
                       }}
                       className="px-6 py-3 rounded-full border border-white/15 hover:border-white/25 text-sm font-semibold text-slate-300 hover:text-white hover:bg-white/5 transition-all w-full sm:w-auto active:scale-95"

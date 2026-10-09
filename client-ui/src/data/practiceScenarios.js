@@ -1222,5 +1222,104 @@ In a separate experiment, electrons are accelerated through a potential differen
 
 ];
 
+// ─── Objective questions (multiple-choice and numeric) ─────────────────────
+// Same scenario shape as the written ones, plus `type`/`options`/`answer`
+// (and `tolerance` for numeric). Practice renders these as selectable options
+// or a number field and marks them locally — instant, and no AI quota spent.
+// For a multiple-choice item, `answer` is the correct option string, matching
+// examBank.js.
+const objectiveScenarios = [
+  {
+    id: 'phy-mcq-001',
+    subject: 'physics',
+    topic: 'Classical Mechanics',
+    topics: ['Classical Mechanics'],
+    level: 'UACE',
+    difficulty: 2,
+    type: 'mcq',
+    totalMarks: 2,
+    source: 'UACE Physics — objective practice',
+    stem: 'A body moves in a circle of radius 2 m at a constant speed of 4 m s⁻¹. What is its centripetal acceleration?',
+    options: ['2 m s⁻²', '4 m s⁻²', '8 m s⁻²', '16 m s⁻²'],
+    answer: '8 m s⁻²',
+    explanation: 'a = v² / r = 4² / 2 = 8 m s⁻².',
+  },
+  {
+    id: 'phy-mcq-002',
+    subject: 'physics',
+    topic: 'Modern Physics',
+    topics: ['Modern Physics'],
+    level: 'UACE',
+    difficulty: 2,
+    type: 'mcq',
+    totalMarks: 2,
+    source: 'UACE Physics — objective practice',
+    stem: 'Who proposed that energy is emitted and absorbed in discrete packets (quanta)?',
+    options: ['Newton', 'Planck', 'Einstein', 'Bohr'],
+    answer: 'Planck',
+    explanation: 'Max Planck introduced energy quantisation, E = hf, in 1900.',
+  },
+  {
+    id: 'phy-num-001',
+    subject: 'physics',
+    topic: 'Optics',
+    topics: ['Optics'],
+    level: 'UACE',
+    difficulty: 2,
+    type: 'numeric',
+    totalMarks: 3,
+    source: 'UACE Physics — objective practice',
+    stem: 'Light travels from air (n = 1.0) into glass (n = 1.5) at an angle of incidence of 30°. Calculate the angle of refraction in degrees, to 1 decimal place.',
+    answer: 19.5,
+    tolerance: 0.5,
+    explanation: 'Snell\'s law: sin 30° = 1.5 sin θ ⇒ sin θ = 1/3 ⇒ θ ≈ 19.5°.',
+  },
+  {
+    id: 'mat-mcq-001',
+    subject: 'mathematics',
+    topic: 'Pure Mathematics',
+    topics: ['Pure Mathematics'],
+    level: 'UACE',
+    difficulty: 1,
+    type: 'mcq',
+    totalMarks: 2,
+    source: 'UACE Mathematics — objective practice',
+    stem: 'What is the modulus of the complex number z = 3 + 4i?',
+    options: ['3', '4', '5', '7'],
+    answer: '5',
+    explanation: '|z| = √(3² + 4²) = √25 = 5.',
+  },
+  {
+    id: 'mat-num-001',
+    subject: 'mathematics',
+    topic: 'Statistics & Probability',
+    topics: ['Statistics & Probability'],
+    level: 'UACE',
+    difficulty: 2,
+    type: 'numeric',
+    totalMarks: 3,
+    source: 'UACE Mathematics — objective practice',
+    stem: 'In a standard normal distribution, what percentage of values lie within one standard deviation of the mean? Give a number.',
+    answer: 68,
+    tolerance: 1,
+    explanation: 'The 68–95–99.7 rule: about 68% of values lie within 1σ of the mean.',
+  },
+  {
+    id: 'mat-mcq-002',
+    subject: 'mathematics',
+    topic: 'Pure Mathematics',
+    topics: ['Pure Mathematics'],
+    level: 'UACE',
+    difficulty: 2,
+    type: 'mcq',
+    totalMarks: 2,
+    source: 'UACE Mathematics — objective practice',
+    stem: 'Evaluate ∫₀⁴ (2x + 3) dx.',
+    options: ['11', '22', '28', '44'],
+    answer: '28',
+    explanation: '∫(2x + 3)dx = x² + 3x; (16 + 12) − 0 = 28.',
+  },
+];
+
 // ─── Master export ─────────────────────────────────────────────────────────
-export const PRACTICE_SCENARIOS = [...physicsScenarios, ...mathematicsScenarios];
+export const PRACTICE_SCENARIOS = [...physicsScenarios, ...mathematicsScenarios, ...objectiveScenarios];

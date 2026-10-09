@@ -53,7 +53,48 @@ function toScenario(row) {
   const parts = Array.isArray(row.parts) ? row.parts : [];
   const markScheme = Array.isArray(row.mark_scheme) ? row.mark_scheme : [];
 
-  if (!row.id || !row.stem?.trim() || parts.length === 0) return null;
+  if (!row.id || !row.stem?.trim()) return null;
+
+  // `written` is the legacy shape (parts + mark scheme). Objective rows are the
+  // newer multiple-choice / numeric kinds, graded locally in practice, so they
+  // carry a single answer instead of a mark scheme.
+  const type = row.type === 'mcq' || row.type === 'numeric' ? row.type : 'written';
+
+  const base = {
+    id: row.id,
+    subject: row.subject,
+    level: row.level,
+    // `topic` is what the attribution rule resolves; `topics` are the extra tags
+    // that let a specific tag win over a broad one.
+    topic: row.topic,
+    topics: Array.isArray(row.topics) ? row.topics : [],
+    difficulty: Number(row.difficulty),
+    source: row.source || 'AI-generated practice scenario',
+    stem: row.stem,
+    type,
+    generated: true,
+  };
+
+  if (type === 'mcq') {
+    const options = Array.isArray(row.options) ? row.options : [];
+    if (options.length < 2 || row.answer === undefined || row.answer === null) return null;
+    return {
+      ...base,
+      totalMarks: Number(row.total_marks) || Number(row.marks) || 1,
+      options,
+      answer: row.answer,
+    };
+  }
+
+  if (type === 'numeric') {
+    if (row.answer === undefined || row.answer === null) return null;
+    return {
+      ...base,
+      totalMarks: Number(row.total_marks) || Number(row.marks) || 1,
+      answer: Number(row.answer),
+      tolerance: Number(row.tolerance) || 0.01,
+    };
+  }
 
   const cleanParts = parts
     .filter(p => p?.text?.trim() && Number(p.marks) > 0)
@@ -65,22 +106,12 @@ function toScenario(row) {
     .map(c => ({ criterion: c.criterion, marks: Number(c.marks) || 0, max: Number(c.max) || 0 }));
 
   return {
-    id: row.id,
-    subject: row.subject,
-    level: row.level,
-    // `topic` is what the attribution rule resolves; `topics` are the extra tags
-    // that let a specific tag win over a broad one.
-    topic: row.topic,
-    topics: Array.isArray(row.topics) ? row.topics : [],
-    difficulty: Number(row.difficulty),
-    source: row.source || 'AI-generated practice scenario',
+    ...base,
     // Recomputed rather than read from the row, so a stored total that drifted
     // from its parts cannot misreport a paper's length.
     totalMarks: cleanParts.reduce((sum, p) => sum + p.marks, 0),
-    stem: row.stem,
     parts: cleanParts,
     markScheme: cleanScheme,
-    generated: true,
   };
 }
 
