@@ -472,9 +472,15 @@ export async function callGenerate(env, payload, { fetchImpl = fetch } = {}) {
         return data.text ?? '';
       }
 
+      const raw = await res.text();
       let detail = {};
-      try { detail = await res.json(); } catch { /* non-JSON body */ }
-      lastError = new Error(detail.error || `ai-proxy returned ${res.status}`);
+      try { detail = JSON.parse(raw); } catch { /* non-JSON body */ }
+      // The Edge gateway's own 404 says { code, message } rather than
+      // { error }, so fall back to message and then the raw body — otherwise a
+      // "function not deployed" looks like a bare "returned 404".
+      lastError = new Error(
+        detail.error || detail.message || `ai-proxy returned ${res.status}: ${raw.slice(0, 200)}`,
+      );
       const retryable = res.status === 429 || res.status >= 500 || detail.retryable === true;
       if (!retryable) throw lastError;
     } catch (err) {
@@ -745,6 +751,19 @@ export async function run(argv = process.argv.slice(2), envIn = process.env) {
     (results.unverifiable ? `, ${results.unverifiable} unverified` : '') +
     (results.uninsertable ? `, ${results.uninsertable} uninsertable` : ''),
   );
+
+  // A run where every attempt failed is a misconfiguration (function not
+  // deployed, wrong SUPABASE_URL, wrong GENERATOR_SECRET), not a slow day.
+  // Exiting non-zero makes the workflow fail instead of reporting a reassuring
+  // green run that produced nothing.
+  if (slots.length > 0 && results.failed === slots.length) {
+    throw new Error(
+      `all ${slots.length} generation calls failed — check that the ai-proxy function is ` +
+      'deployed, that SUPABASE_URL is exactly https://<ref>.supabase.co (no trailing slash), ' +
+      'and that GENERATOR_SECRET matches the Edge Function secret.',
+    );
+  }
+
   return results;
 }
 

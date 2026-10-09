@@ -186,11 +186,13 @@ export default function AdminQuestionQueue({ onChanged }) {
     setError('');
     try {
       // RLS allows an admin to read every status, so the counts can come from
-      // the same query rather than three extra round trips.
+      // the same query rather than three extra round trips. Newest first keeps
+      // the 500-row cap on recent history rather than freezing on the oldest
+      // 500 rows once the pool is large.
       const { data, error: err } = await supabase
         .from('practice_questions')
-        .select('id, subject, level, topic, topic_id, difficulty, total_marks, stem, parts, mark_scheme, status, reject_reason, source, created_at, published_at')
-        .order('created_at', { ascending: false })
+        .select('id, subject, level, topic, topic_id, difficulty, total_marks, stem, parts, mark_scheme, status, reject_reason, source, generated_at, published_at')
+        .order('generated_at', { ascending: false })
         .limit(500);
 
       if (err) throw err;
@@ -209,10 +211,11 @@ export default function AdminQuestionQueue({ onChanged }) {
   useEffect(() => { fetchRows(); }, [fetchRows]);
 
   const visible = useMemo(() => {
-    // Oldest first within a status: the queue is a work list, and the questions
-    // that have been waiting longest are the ones a student is most likely to
-    // want instead of the built-ins.
-    return rows.filter(r => r.status === filter).slice(0, PAGE_SIZE);
+    const matches = rows.filter(r => r.status === filter);
+    // Pending is a work list, so it shows the questions that have waited
+    // longest first (rows arrive newest-first). Published/rejected are history,
+    // where newest-first is the useful order.
+    return (filter === 'pending' ? matches.reverse() : matches).slice(0, PAGE_SIZE);
   }, [rows, filter]);
 
   const transition = async (id, status, reason = null) => {
