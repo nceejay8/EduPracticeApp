@@ -8,6 +8,7 @@ import { PRACTICE_SCENARIOS, getCustomScenarios, saveCustomScenario, deleteCusto
 import { invalidateCoverage } from '../data/syllabusProgress';
 import { getPublishedScenarios } from '../data/publishedScenarios';
 import AdminQuestionQueue from '../components/AdminQuestionQueue';
+import MathText from '../components/MathText';
 import { useAuth } from '../contexts/AuthContext';
 
 const SUBJECTS   = ['physics', 'mathematics'];
@@ -119,7 +120,7 @@ function ScenarioCard({ scenario, isCustom, onDelete }) {
         <div className="px-5 pb-5 border-t border-white/5 pt-4 space-y-4">
           <div>
             <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Stem / Context</p>
-            <p className="text-sm text-slate-300 leading-relaxed whitespace-pre-wrap">{scenario.stem}</p>
+            <p className="text-sm text-slate-300 leading-relaxed whitespace-pre-wrap"><MathText text={scenario.stem} /></p>
           </div>
 
           <div>
@@ -128,7 +129,7 @@ function ScenarioCard({ scenario, isCustom, onDelete }) {
               {(scenario.parts || []).map((p, i) => (
                 <div key={i} className="flex gap-3 text-sm">
                   <span className="font-bold text-amber-400 shrink-0 w-8">({p.label})</span>
-                  <span className="text-slate-300 flex-1">{p.text}</span>
+                  <MathText className="text-slate-300 flex-1" text={p.text} />
                   <span className="text-slate-500 shrink-0">[{p.marks} mk]</span>
                 </div>
               ))}
@@ -141,7 +142,7 @@ function ScenarioCard({ scenario, isCustom, onDelete }) {
               {(scenario.markScheme || []).map((m, i) => (
                 <div key={i} className="flex gap-3 text-xs">
                   <span className="w-4 h-4 rounded-full bg-emerald-500/20 border border-emerald-500/30 flex items-center justify-center text-emerald-400 font-bold shrink-0">{m.max}</span>
-                  <span className="text-slate-400">{m.criterion}</span>
+                  <MathText className="text-slate-400" text={m.criterion} />
                 </div>
               ))}
             </div>

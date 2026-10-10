@@ -2,6 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { Icon } from '@iconify/react';
 import { getAttempt } from '../data/examBank';
+import MathText from '../components/MathText';
 
 export default function ExamResults() {
   const { attemptId } = useParams();
@@ -182,7 +183,7 @@ export default function ExamResults() {
                     </span>
                     <div className="flex-1 min-w-0">
                       <p className="text-xs text-slate-400 mb-1">{b.topic} • {b.difficulty}</p>
-                      <p className="text-sm sm:text-base text-white leading-relaxed">{b.prompt}</p>
+                      <p className="text-sm sm:text-base text-white leading-relaxed"><MathText text={b.prompt} /></p>
                     </div>
                     <Icon
                       icon={b.correct ? 'solar:check-circle-bold' : 'solar:close-circle-bold'}
@@ -193,16 +194,16 @@ export default function ExamResults() {
                   <div className="px-4 sm:px-5 pb-5 pt-0 space-y-2 text-sm">
                     <div className="flex flex-wrap gap-x-6 gap-y-1">
                       <p className="text-slate-400">
-                        Your answer: <span className={b.correct ? 'text-emerald-300 font-semibold' : 'text-rose-300 font-semibold'}>{userText}</span>
+                        Your answer: <MathText className={b.correct ? 'text-emerald-300 font-semibold' : 'text-rose-300 font-semibold'} text={userText} />
                       </p>
                       <p className="text-slate-400">
-                        Correct: <span className="text-emerald-300 font-semibold">{String(b.correctAnswer)}</span>
+                        Correct: <MathText className="text-emerald-300 font-semibold" text={String(b.correctAnswer)} />
                       </p>
                     </div>
                     {b.explanation && (
                       <div className="mt-2 p-3 bg-white/5 rounded-lg border border-white/5">
                         <p className="text-xs text-slate-400 mb-1 font-semibold uppercase tracking-wider">Explanation</p>
-                        <p className="text-slate-200 leading-relaxed">{b.explanation}</p>
+                        <p className="text-slate-200 leading-relaxed"><MathText text={b.explanation} /></p>
                       </div>
                     )}
                   </div>

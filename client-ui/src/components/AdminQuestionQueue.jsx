@@ -14,6 +14,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Icon } from '@iconify/react';
 import { supabase } from '../lib/supabaseClient';
 import { usePublishedScenarios } from '../hooks/usePublishedScenarios';
+import MathText from './MathText';
 
 const PAGE_SIZE = 25;
 
@@ -110,7 +111,7 @@ function QuestionCard({ row, onApprove, onReject, busy }) {
           </p>
         )}
 
-        <p className="text-sm text-slate-300 leading-relaxed line-clamp-3">{row.stem}</p>
+        <p className="text-sm text-slate-300 leading-relaxed line-clamp-3"><MathText text={row.stem} /></p>
 
         <button
           onClick={() => setOpen(o => !o)}
@@ -132,7 +133,7 @@ function QuestionCard({ row, onApprove, onReject, busy }) {
                     {p.label || `(${i + 1})`}
                   </span>
                   <span className="flex-1">
-                    {p.text}
+                    <MathText text={p.text} />
                     <span className="text-slate-500 text-xs"> [{p.marks}]</span>
                   </span>
                 </li>
@@ -147,7 +148,7 @@ function QuestionCard({ row, onApprove, onReject, busy }) {
                 <li key={i} className="text-sm text-slate-400 flex gap-3">
                   <span className="text-slate-600 font-mono text-xs shrink-0 w-8 pt-0.5">{i + 1}</span>
                   <span className="flex-1">
-                    {c.criterion}
+                    <MathText text={c.criterion} />
                     <span className="text-slate-600 text-xs"> [{c.marks}/{c.max}]</span>
                   </span>
                 </li>

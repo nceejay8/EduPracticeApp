@@ -303,6 +303,10 @@ const GENERATE_SYSTEM = [
   '- The stem must be self-contained: every datum needed to answer is given in it.',
   '- Use SI units. Ugandan context (matatus, local distances, familiar prices) where natural,',
   '  never forced.',
+  '- Write every mathematical expression as LaTeX between single dollar signs. Examples:',
+  '  $v^2 = u^2 + 2as$, $\\frac{1}{2}mv^2$, $6t^2 + 2$, $2.5 \\times 10^{-4}$, $\\int_0^4 (2x+3)\\,dx$.',
+  '  Keep units readable, e.g. 9.8 m/s$^2$ or $9.8\\,\\mathrm{m/s^2}$.',
+  '  Never use Unicode superscripts (x²) or the × sign — write $x^2$ and $\\times$.',
   '- No multiple choice. No diagrams — describe anything visual in words.',
   '- difficulty: 1 = routine substitution, 2 = multi-step with a choice of method,',
   '  3 = unfamiliar context combining several ideas.',
@@ -314,7 +318,7 @@ const GENERATE_SYSTEM = [
 export const GENERATE_SCHEMA = {
   type: 'OBJECT',
   properties: {
-    stem: { type: 'STRING' },
+    stem: { type: 'STRING', description: 'LaTeX math inside $...$ where needed' },
     difficulty: { type: 'INTEGER', description: '1, 2 or 3' },
     parts: {
       type: 'ARRAY',
@@ -322,7 +326,7 @@ export const GENERATE_SCHEMA = {
         type: 'OBJECT',
         properties: {
           label: { type: 'STRING', description: '(a), (b), …' },
-          text: { type: 'STRING' },
+          text: { type: 'STRING', description: 'LaTeX math inside $...$ where needed' },
           marks: { type: 'INTEGER' },
         },
         required: ['label', 'text', 'marks'],
@@ -333,7 +337,7 @@ export const GENERATE_SCHEMA = {
       items: {
         type: 'OBJECT',
         properties: {
-          criterion: { type: 'STRING' },
+          criterion: { type: 'STRING', description: 'LaTeX math inside $...$ where needed' },
           marks: { type: 'INTEGER' },
           max: { type: 'INTEGER' },
         },
@@ -361,7 +365,8 @@ export function buildGeneratePrompt({ topicName, chapterName, subjectName, diffi
 // sampling at temperature 0, not a second opinion it can copy the first from.
 const VERIFY_SYSTEM = [
   'You verify exam questions. You are given a finished question and its mark scheme.',
-  'Work through it yourself:',
+  'Mathematical expressions may be written as LaTeX between $...$; read them as the',
+  'underlying value. Work through it yourself:',
   '1. For every numerical value the mark scheme asserts as a COMPUTED result,',
   '   recompute it from the data in the stem and parts. Compare after rounding',
   '   both to 3 significant figures. Do not flag values merely given in the question.',

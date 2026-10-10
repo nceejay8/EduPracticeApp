@@ -9,6 +9,7 @@ import { getSubject, getTopic, listChapters, normalizeSubject, normalizeLevelId,
 import { getTopicCoverage } from '../data/syllabusProgress';
 import { pickScenarioForSyllabusTopic } from '../data/practiceScenarios';
 import ChatInterface from '../components/ChatInterface';
+import MathText from '../components/MathText';
 import { trackPracticeAttempt, trackTopicView } from '../utils/analyticsTracker';
 import { useAuth } from '../contexts/AuthContext';
 import { evaluatePracticeSolution } from '../services/practiceAiService';
@@ -663,7 +664,7 @@ export default function Practice() {
                 <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">{currentScenario.source}</p>
               )}
               <p className="text-slate-300 leading-relaxed text-base sm:text-lg whitespace-pre-line">
-                {currentScenario?.stem || 'Loading question...'}
+                <MathText text={currentScenario?.stem || 'Loading question...'} />
               </p>
             </div>
 
@@ -692,7 +693,7 @@ export default function Practice() {
                         }`}>
                           {String.fromCharCode(65 + i)}
                         </span>
-                        <span className="flex-1 text-sm sm:text-base">{opt}</span>
+                        <MathText className="flex-1 text-sm sm:text-base" text={opt} />
                       </button>
                     );
                   })}
@@ -764,12 +765,12 @@ export default function Practice() {
                         {t('practice.solutionEvaluated')}
                       </h3>
                       <div className="text-slate-300 text-sm md:text-base leading-relaxed space-y-3">
-                        <p>{feedback.summary || 'Your solution has been evaluated.'}</p>
+                        <p><MathText text={feedback.summary || 'Your solution has been evaluated.'} /></p>
                         {feedback.strengths && feedback.strengths.length > 0 && (
                           <div>
                             <p className="font-semibold text-white mb-1">What you did well</p>
                             <ul className="list-disc pl-5 space-y-1">
-                              {feedback.strengths.map((item, idx) => <li key={idx}>{item}</li>)}
+                              {feedback.strengths.map((item, idx) => <li key={idx}><MathText text={item} /></li>)}
                             </ul>
                           </div>
                         )}
@@ -777,14 +778,14 @@ export default function Practice() {
                           <div>
                             <p className="font-semibold text-white mb-1">Improve next time</p>
                             <ul className="list-disc pl-5 space-y-1">
-                              {feedback.improvements.map((item, idx) => <li key={idx}>{item}</li>)}
+                              {feedback.improvements.map((item, idx) => <li key={idx}><MathText text={item} /></li>)}
                             </ul>
                           </div>
                         )}
                         {feedback.modelAnswer && (
                           <div className="rounded-xl bg-white/5 border border-white/10 p-4">
                             <p className="font-semibold text-white mb-1">Model answer outline</p>
-                            <p>{feedback.modelAnswer}</p>
+                            <p><MathText text={feedback.modelAnswer} /></p>
                           </div>
                         )}
                       </div>

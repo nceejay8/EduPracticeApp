@@ -4,6 +4,7 @@ import { Icon } from '@iconify/react';
 import { buildExam, scoreExam, saveAttempt } from '../data/examBank';
 import { trackExamStart, trackExamCompletion } from '../utils/analyticsTracker';
 import FocusAudio from '../components/FocusAudio';
+import MathText from '../components/MathText';
 import { clearExamDraft, loadExamDraft, saveExamDraft } from '../services/examDraftService';
 import { useAuth } from '../contexts/AuthContext';
 
@@ -263,13 +264,13 @@ export default function ExamRunner() {
                     <p className="text-[11px] uppercase tracking-wider font-semibold text-amber-300 mb-1.5">
                       Read the scenario
                     </p>
-                    <p className="text-sm sm:text-base text-slate-200 leading-relaxed">{q.context}</p>
+                    <p className="text-sm sm:text-base text-slate-200 leading-relaxed"><MathText text={q.context} /></p>
                   </div>
                 </div>
               </div>
             )}
 
-            <h2 className="text-lg sm:text-xl font-semibold leading-relaxed mb-6">{q.prompt}</h2>
+            <h2 className="text-lg sm:text-xl font-semibold leading-relaxed mb-6"><MathText text={q.prompt} /></h2>
 
             {q.type === 'mcq' && (
               <div className="space-y-2.5">
@@ -290,7 +291,7 @@ export default function ExamRunner() {
                       }`}>
                         {String.fromCharCode(65 + i)}
                       </span>
-                      <span className="flex-1 text-sm sm:text-base">{opt}</span>
+                      <MathText className="flex-1 text-sm sm:text-base" text={opt} />
                     </button>
                   );
                 })}
