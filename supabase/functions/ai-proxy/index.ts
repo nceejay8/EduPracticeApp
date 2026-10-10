@@ -194,11 +194,15 @@ Deno.serve(async (req) => {
       {
         contents: body.contents,
         systemInstruction: body.systemInstruction,
-        generationConfig: body.generationConfig,
-        // Structured output. Far more reliable than asking for JSON and
-        // stripping code fences client-side, which is what the old
-        // practiceAiService extractJson() had to do.
-        ...(body.responseSchema ? { responseSchema: body.responseSchema } : {}),
+        generationConfig: {
+          ...body.generationConfig,
+          // Structured output. Far more reliable than asking for JSON and
+          // stripping code fences client-side, which is what the old
+          // practiceAiService extractJson() had to do. Gemini only accepts
+          // `responseSchema` inside `generationConfig`; the generator sends it
+          // top-level, so it is folded in here.
+          ...(body.responseSchema ? { responseSchema: body.responseSchema } : {}),
+        },
       },
       apiKey,
     );
