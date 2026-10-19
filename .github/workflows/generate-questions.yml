@@ -27,9 +27,9 @@ on:
   workflow_dispatch:
     inputs:
       limit:
-        description: 'Questions to generate (1-50)'
+        description: 'Questions to generate (1-20)'
         required: false
-        default: '50'
+        default: '20'
 
 # Never two generation runs at once: they would race for the same daily ids.
 concurrency:
